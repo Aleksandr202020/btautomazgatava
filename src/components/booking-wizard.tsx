@@ -31,3 +31,14 @@ const EXTRA_ICONS: Record<ExtraId, JSX.Element> = {
   discs: <Disc className="size-6" />,
   engine: <Wrench className="size-6" />,
 };
+
+function weekdayLabel(iso: string, lang: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d));
+  return new Intl.DateTimeFormat(lang === "en" ? "en-GB" : lang === "ru" ? "ru-RU" : "lv-LV", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(dt);
+}
