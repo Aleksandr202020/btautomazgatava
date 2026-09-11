@@ -1,19 +1,20 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #080809;
-  --color-surface: #111114;
-  --color-elevated: #18181c;
-  --color-fg: #f3f1ec;
-  --color-muted: #9a9790;
-  --color-subtle: #6e6b66;
-  --color-accent: #c8ccd4;
-  --color-accent-fg: #080809;
-  --color-border: #2a2a2e;
-  --color-line: #1e1e22;
-  --color-ok: #8fbf9a;
-  --color-warn: #c4a574;
-  --color-danger: #c47a72;
+  /* Light theme — clean automotive */
+  --color-bg: #f7f6f3;
+  --color-surface: #ffffff;
+  --color-elevated: #f0efeb;
+  --color-fg: #141414;
+  --color-muted: #5c5a56;
+  --color-subtle: #8a8780;
+  --color-accent: #1a1a1a;
+  --color-accent-fg: #f7f6f3;
+  --color-border: #e2e0da;
+  --color-line: #ebe9e3;
+  --color-ok: #2f6b45;
+  --color-warn: #9a6b2f;
+  --color-danger: #a33d35;
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
   --radius-xs: 4px;
