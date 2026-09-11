@@ -19,6 +19,8 @@ export const BUSINESS = {
   mapsOsm: "https://www.openstreetmap.org/?mlat=56.935658&mlon=24.140163#map=17/56.935658/24.140163",
   mapsEmbed:
     "https://www.openstreetmap.org/export/embed.html?bbox=24.130163%2C56.930658%2C24.150163%2C56.940658&layer=mapnik&marker=56.935658%2C24.140163",
+  chemistry: "DAERG CHIMICA",
+  equipment: "Kärcher",
 } as const;
 
 export const SLOT_MINUTES = 60;
@@ -26,7 +28,7 @@ export const WORK_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 export const HOLIDAYS: string[] = [];
 
 export type VehicleId = "car" | "suv";
-export type ExtraId = "tyres" | "leather" | "antirain" | "engine" | "fragrance";
+export type ExtraId = "fragrance" | "tyres" | "leather" | "antirain" | "discs" | "engine";
 export type ServiceId = "komplekss";
 
 export const VEHICLES: {
@@ -44,7 +46,7 @@ export const VEHICLES: {
   {
     id: "suv",
     price: 30,
-    label: { lv: "Jeep / Crossover / Minivan", ru: "Jeep / Crossover / Minivan", en: "Jeep / Crossover / Minivan" },
+    label: { lv: "SUV / Crossover / Minivan", ru: "SUV / Crossover / Minivan", en: "SUV / Crossover / Minivan" },
     hint: { lv: "SUV, apvidus, ģimenes", ru: "Внедорожник, кроссовер, минивэн", en: "SUV, crossover, minivan" },
   },
 ];
@@ -54,36 +56,82 @@ export const SERVICE = {
   priceFrom: 25,
   label: { lv: "Kompleksā mazgāšana", ru: "Комплексная мойка", en: "Full hand wash" },
   summary: {
-    lv: "Virsbūve, salons, stikli un paklājiņi — ar rokām, bez steigas.",
-    ru: "Кузов, салон, стёкла и коврики — вручную, без спешки.",
-    en: "Body, interior, glass and mats — by hand, without rush.",
+    lv: "Mēs cenšamies iegūt maksimāli kvalitatīvu rezultātu ierobežotā apkalpošanas laikā.",
+    ru: "Мы стараемся получить максимально качественный результат за отведённое время обслуживания.",
+    en: "We aim for the highest quality result within the time allocated for your car.",
   },
-  includes: {
+  exterior: {
     lv: [
-      "Virsbūves mazgāšana ar rokām",
-      "Karcher skalošana",
-      "Salona putekļsūcējs",
-      "Paneļu tīrīšana",
-      "Stiklu tīrīšana",
+      "Iepriekšēja virsbūves mazgāšana ar speciālo autoķīmiju",
+      "Noskalošana",
+      "Roku mazgāšana virsbūvei",
       "Gumijas paklājiņu mazgāšana",
+      "Vaska uzklāšana",
+      "Gala noskalošana",
+      "Virsbūves žāvēšana",
     ],
     ru: [
+      "Предварительная мойка кузова специальной автохимией",
+      "Ополаскивание",
       "Ручная мойка кузова",
-      "Ополаскивание Karcher",
-      "Пылесос салона",
-      "Очистка панелей",
-      "Очистка стёкол",
       "Мойка резиновых ковриков",
+      "Нанесение воска",
+      "Финальное ополаскивание",
+      "Сушка кузова",
     ],
     en: [
+      "Pre-wash of the body with specialist chemistry",
+      "Rinse",
       "Hand wash of the body",
-      "Karcher rinse",
-      "Interior vacuum",
-      "Dashboard wipe-down",
-      "Glass cleaning",
       "Rubber mat wash",
+      "Wax application",
+      "Final rinse",
+      "Body drying",
     ],
   },
+  interior: {
+    lv: [
+      "Salona putekļsūcējs",
+      "Sēdekļu tīrīšana",
+      "Grīdas tīrīšana",
+      "Bagāžnieka tīrīšana (ja brīvs)",
+      "Tekstila paklājiņu tīrīšana",
+      "Paneļu tīrīšana",
+      "Plastmasas elementu tīrīšana",
+      "Stiklu tīrīšana no iekšpuses",
+    ],
+    ru: [
+      "Пылесос салона",
+      "Очистка сидений",
+      "Очистка пола",
+      "Очистка багажника (если свободен)",
+      "Очистка текстильных ковриков",
+      "Очистка панелей",
+      "Очистка пластиковых элементов",
+      "Очистка стёкол изнутри",
+    ],
+    en: [
+      "Interior vacuum",
+      "Seat cleaning",
+      "Floor cleaning",
+      "Boot cleaning (if empty)",
+      "Textile mat cleaning",
+      "Dashboard wipe-down",
+      "Plastic elements cleaning",
+      "Interior glass cleaning",
+    ],
+  },
+  includes: {
+    lv: [] as string[],
+    ru: [] as string[],
+    en: [] as string[],
+  },
+};
+
+SERVICE.includes = {
+  lv: [...SERVICE.exterior.lv, ...SERVICE.interior.lv],
+  ru: [...SERVICE.exterior.ru, ...SERVICE.interior.ru],
+  en: [...SERVICE.exterior.en, ...SERVICE.interior.en],
 };
 
 export const EXTRAS: {
@@ -91,11 +139,12 @@ export const EXTRAS: {
   price: number;
   label: { lv: string; ru: string; en: string };
 }[] = [
+  { id: "fragrance", price: 3, label: { lv: "Aromatizācija", ru: "Ароматизация", en: "Fragrance" } },
   { id: "tyres", price: 4, label: { lv: "Riepu apstrāde", ru: "Обработка шин", en: "Tyre dressing" } },
-  { id: "leather", price: 4, label: { lv: "Ādas salona apstrāde", ru: "Обработка кожи", en: "Leather care" } },
-  { id: "antirain", price: 4, label: { lv: "Antilietus priekšējam stiklam", ru: "Антидождь на лобовое", en: "Anti-rain for windscreen" } },
-  { id: "engine", price: 10, label: { lv: "Dzinēja mazgāšana", ru: "Мойка двигателя", en: "Engine bay wash" } },
-  { id: "fragrance", price: 3, label: { lv: "Salona aromatizācija", ru: "Ароматизация салона", en: "Interior fragrance" } },
+  { id: "leather", price: 4, label: { lv: "Ādas apstrāde", ru: "Обработка кожи", en: "Leather care" } },
+  { id: "antirain", price: 4, label: { lv: "Antilietus", ru: "Антидождь", en: "Anti-rain" } },
+  { id: "discs", price: 4, label: { lv: "Disku tīrīšana", ru: "Очистка дисков", en: "Wheel cleaning" } },
+  { id: "engine", price: 15, label: { lv: "Dzinēja mazgāšana", ru: "Мойка двигателя", en: "Engine bay wash" } },
 ];
 
 export function calcPrice(vehicle: VehicleId, extras: ExtraId[]): number {
@@ -142,7 +191,7 @@ export const REVIEWS = [
     rating: 4,
     date: "2026-07-03",
     text: {
-      lv: "Labs darbs, 30 minūtes jeep. Riepu apstrāde izskatās dārgi. Nākamreiz ņemšu arī antillietu.",
+      lv: "Labs darbs, ap stundu jeep. Riepu apstrāde izskatās dārgi. Nākamreiz ņemšu arī antilietu.",
       ru: "Хорошая работа, около часа на jeep. Чернение шин выглядит дорого. В следующий раз возьму антидождь.",
       en: "Solid work, about an hour on a jeep. Tyre dressing looks expensive. Next time I'll add anti-rain.",
     },
@@ -162,74 +211,86 @@ export const REVIEWS = [
 export const FAQ = [
   {
     q: {
-      lv: "Vai var atbraukt bez pieraksta?",
-      ru: "Можно приехать без записи?",
-      en: "Can I come without a booking?",
+      lv: "Vai nepieciešama iepriekšēja rezervācija?",
+      ru: "Нужна ли предварительная запись?",
+      en: "Is a prior booking required?",
     },
     a: {
-      lv: "Mums ir viens darba posts, tāpēc strādājam pēc iepriekšēja pieraksta. Tas nozīmē — Jūs neatnākat uz rindu.",
-      ru: "У нас один пост, поэтому работаем по предварительной записи. Вы не стоите в очереди.",
-      en: "We run a single bay, so we work by appointment. You will not wait in a queue.",
+      lv: "Jā. Mums ir viens darba posts, tāpēc strādājam tikai pēc iepriekšēja pieraksta. Jūs neatnākat uz rindu.",
+      ru: "Да. У нас один пост, поэтому работаем только по предварительной записи. Вы не стоите в очереди.",
+      en: "Yes. We run a single bay, so we work only by appointment. You will not wait in a queue.",
     },
   },
   {
     q: {
-      lv: "Cik ilgi aizņem mazgāšana?",
-      ru: "Сколько длится мойка?",
-      en: "How long does a wash take?",
+      lv: "Cik ilgi ilgst automašīnas apkalpošana?",
+      ru: "Сколько длится обслуживание автомобиля?",
+      en: "How long does a service take?",
     },
     a: {
-      lv: "Parasti ap vienu stundu. Jeep un minivan var aizņemt nedaudz ilgāk. Slota garums ir 60 minūtes.",
-      ru: "Обычно около часа. Jeep и минивэн могут занять чуть больше. Слот — 60 минут.",
-      en: "Usually about an hour. Jeeps and minivans can take a little longer. Slots are 60 minutes.",
+      lv: "Parasti ap vienu stundu. SUV un minivan var aizņemt nedaudz ilgāk. Slota garums ir 60 minūtes.",
+      ru: "Обычно около часа. SUV и минивэн могут занять чуть больше. Слот — 60 минут.",
+      en: "Usually about an hour. SUVs and minivans can take a little longer. Slots are 60 minutes.",
     },
   },
   {
     q: {
-      lv: "Kas ietilpst 25 € / 30 € cenā?",
-      ru: "Что входит в цену 25 € / 30 €?",
-      en: "What is included in 25 € / 30 €?",
+      lv: "Kas ir iekļauts kompleksā?",
+      ru: "Что входит в комплекс?",
+      en: "What is included in the package?",
     },
     a: {
-      lv: "Roku mazgāšana virsbūvei, Karcher, salona putekļsūcējs, paneļi, stikli un gumijas paklājiņi. Vasks ietilpst kompleksā.",
-      ru: "Ручная мойка кузова, Karcher, пылесос салона, панели, стёкла и резиновые коврики. Воск входит в комплекс.",
-      en: "Hand body wash, Karcher, interior vacuum, panels, glass and rubber mats. Wax is part of the package.",
+      lv: "Ārējā manuālā mazgāšana (ķīmija, skalošana, vasks, žāvēšana) un salona tīrīšana (putekļsūcējs, sēdekļi, grīda, paneļi, stikli). Pilns saraksts ir uz lapas.",
+      ru: "Внешняя ручная мойка (химия, ополаскивание, воск, сушка) и очистка салона (пылесос, сиденья, пол, панели, стёкла). Полный список — на сайте.",
+      en: "Exterior hand wash (chemistry, rinse, wax, dry) and interior clean (vacuum, seats, floor, panels, glass). Full list is on the page.",
     },
   },
   {
     q: {
-      lv: "Kā var apmaksāt?",
-      ru: "Как можно оплатить?",
-      en: "How can I pay?",
+      lv: "Vai mazgājat SUV un krosoverus?",
+      ru: "Моете ли SUV и кроссоверы?",
+      en: "Do you wash SUVs and crossovers?",
     },
     a: {
-      lv: "Uz vietas — skaidra nauda vai karte. Tiešsaistes apmaksa nav nepieciešama, lai rezervētu laiku.",
-      ru: "На месте — наличные или карта. Онлайн-оплата для записи не нужна.",
-      en: "On site — cash or card. You do not need to pay online to reserve a slot.",
+      lv: "Jā. SUV / Crossover / Minivan — 30 €.",
+      ru: "Да. SUV / Crossover / Minivan — 30 €.",
+      en: "Yes. SUV / Crossover / Minivan — 30 €.",
     },
   },
   {
     q: {
-      lv: "Ko darīt, ja nevaru ierasties?",
-      ru: "Что делать, если не смогу приехать?",
-      en: "What if I cannot make it?",
+      lv: "Vai var pievienot papildu pakalpojumus?",
+      ru: "Можно ли добавить дополнительные услуги?",
+      en: "Can I add extra services?",
     },
     a: {
-      lv: "Lūdzu, piezvaniet pēc iespējas ātrāk. Mēs atbrīvosim Jūsu laiku nākamajam klientam.",
-      ru: "Позвоните как можно раньше — освободим слот для следующего клиента.",
-      en: "Please call as soon as you can so we can free the slot for the next car.",
+      lv: "Jā — aromatizācija, riepas, āda, antilietus, diski, dzinējs. Izvēlieties tos pieraksta formā.",
+      ru: "Да — ароматизация, шины, кожа, антидождь, диски, двигатель. Выберите их в форме записи.",
+      en: "Yes — fragrance, tyres, leather, anti-rain, wheels, engine. Select them in the booking form.",
     },
   },
   {
     q: {
-      lv: "Vai mazgājat dzinēju?",
-      ru: "Моете ли двигатель?",
-      en: "Do you wash the engine bay?",
+      lv: "Vai varu atcelt rezervāciju?",
+      ru: "Могу ли я отменить запись?",
+      en: "Can I cancel a booking?",
     },
     a: {
-      lv: "Jā, kā papildu pakalpojumu no 10 €. Pastāstiet par to pierakstā vai zvanot.",
-      ru: "Да, как доп. услуга от 10 €. Укажите это при записи или по телефону.",
-      en: "Yes, as an extra from 10 €. Add it in the booking or mention it when you call.",
+      lv: "Jā. Lūdzu, piezvaniet vai uzrakstiet WhatsApp pēc iespējas ātrāk, lai atbrīvotu laiku nākamajam klientam.",
+      ru: "Да. Позвоните или напишите в WhatsApp как можно раньше, чтобы освободить слот.",
+      en: "Yes. Please call or message on WhatsApp as soon as you can so we can free the slot.",
+    },
+  },
+  {
+    q: {
+      lv: "Vai cena mainās, ja automašīna ir ļoti netīra?",
+      ru: "Меняется ли цена, если машина очень грязная?",
+      en: "Does the price change if the car is very dirty?",
+    },
+    a: {
+      lv: "Nē. Cena atkarīga no auto tipa un izvēlētajiem pakalpojumiem. Nestandarta papildu darbi tiek saskaņoti atsevišķi.",
+      ru: "Нет. Цена зависит от типа авто и выбранных услуг. Нестандартные дополнительные работы согласовываются отдельно.",
+      en: "No. Price depends on vehicle type and selected services. Non-standard extra work is agreed separately.",
     },
   },
 ] as const;
