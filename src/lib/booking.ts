@@ -6,7 +6,7 @@ import { normalizePhone, rigaDate } from "./utils";
 
 const ADMIN_PIN = "090021";
 
-const ExtraZ = z.enum(["tyres", "leather", "antirain", "engine", "fragrance"]);
+const ExtraZ = z.enum(["fragrance", "tyres", "leather", "antirain", "discs", "engine"]);
 const VehicleZ = z.enum(["car", "suv"]);
 const StatusZ = z.enum(["new", "confirmed", "completed", "cancelled", "no-show"]);
 
