@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { createBooking, getAvailableSlots, type BookingPublic } from "@/lib/booking";
 import { useBookingUi, type WizardStep } from "@/lib/booking-ui";
 import { BUSINESS, calcPrice, EXTRAS, SERVICE, VEHICLES, type ExtraId } from "@/lib/catalog";
+import { VehicleSelector } from "@/components/booking/VehicleSelector";
 import { useLang } from "@/lib/lang";
 import { upcomingDates } from "@/lib/slots";
 import { cn, formatEuro, track } from "@/lib/utils";
@@ -93,6 +94,9 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
           comment: draft.comment,
           privacy: true,
           honeypot,
+          carBrand: draft.carBrand,
+          carModel: draft.carModel,
+          carPriceCategory: draft.carPriceCategory ?? undefined,
         },
       });
       if (!res.ok) {
@@ -138,28 +142,39 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
 
       <div className="flex-1 overflow-y-auto px-4 py-6">
         {step === 1 && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <h2 className="font-display text-3xl">{t("stepVehicle")}</h2>
-            {VEHICLES.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                onClick={() => {
-                  patch({ vehicleType: v.id });
-                  go(2);
-                }}
-                className={cn(
-                  "w-full rounded-xl border p-5 text-left transition-colors",
-                  draft.vehicleType === v.id ? "border-fg bg-elevated" : "border-border hover:border-fg/40",
-                )}
-              >
-                <div className="flex items-baseline justify-between gap-4">
-                  <span className="font-display text-2xl">{v.label[lang]}</span>
-                  <span className="tabular-nums">{formatEuro(v.price, lang)}</span>
-                </div>
-                <p className="mt-1 text-sm text-muted">{v.hint[lang]}</p>
-              </button>
-            ))}
+            <VehicleSelector
+              value={{
+                carBrand: draft.carBrand,
+                carModel: draft.carModel,
+                carPriceCategory: draft.carPriceCategory,
+              }}
+              onChange={(sel) => {
+                patch({
+                  vehicleType: sel.vehicleType,
+                  carBrand: sel.carBrand,
+                  carModel: sel.carModel,
+                  carBodyType: sel.carBodyType,
+                  carPriceCategory: sel.carPriceCategory,
+                  carPrice: sel.carPrice,
+                  carPriceLabel: sel.carPriceLabel,
+                  serviceDuration: sel.serviceDuration,
+                });
+              }}
+            />
+            <Button
+              className="w-full"
+              size="lg"
+              disabled={
+                !draft.carBrand ||
+                !draft.carModel ||
+                ((draft.carBrand === "Other" || draft.carModel === "Other") && !draft.carPriceCategory)
+              }
+              onClick={() => go(2)}
+            >
+              {t("next")}
+            </Button>
           </div>
         )}
 
@@ -361,7 +376,11 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
             <dl className="mt-5 space-y-3 rounded-xl border border-border bg-surface p-5 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-muted">{t("stepVehicle")}</dt>
-                <dd>{vehicle?.label[lang]}</dd>
+                <dd className="text-right">
+                  {draft.carBrand && draft.carModel && draft.carModel !== "Other"
+                    ? `${draft.carBrand} ${draft.carModel}`
+                    : vehicle?.label[lang] ?? draft.carPriceLabel}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-muted">{t("stepService")}</dt>
@@ -486,10 +505,10 @@ export function CookieBanner() {
         <p className="text-sm text-muted">{t("cookieBody")}</p>
         <div className="mt-3 flex gap-2">
           <Button size="md" onClick={() => choose("all")}>
-            {t("cookieAccept")}
+            {t("cookieAll")}
           </Button>
-          <Button variant="secondary" onClick={() => choose("essential")}>
-            {t("cookieReject")}
+          <Button variant="secondary" size="md" onClick={() => choose("essential")}>
+            {t("cookieEssential")}
           </Button>
         </div>
       </div>
