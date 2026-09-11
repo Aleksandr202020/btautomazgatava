@@ -1,10 +1,18 @@
 import { create } from "zustand";
 import type { ExtraId, VehicleId } from "./catalog";
+import type { BodyType, PriceCategory } from "./vehicles";
 
 export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export type Draft = {
   vehicleType: VehicleId | null;
+  carBrand: string;
+  carModel: string;
+  carBodyType: BodyType | null;
+  carPriceCategory: PriceCategory | null;
+  carPrice: number | null;
+  carPriceLabel: string;
+  serviceDuration: number;
   extras: ExtraId[];
   date: string;
   time: string;
@@ -17,6 +25,13 @@ export type Draft = {
 
 const emptyDraft = (): Draft => ({
   vehicleType: null,
+  carBrand: "",
+  carModel: "",
+  carBodyType: null,
+  carPriceCategory: null,
+  carPrice: null,
+  carPriceLabel: "",
+  serviceDuration: 60,
   extras: [],
   date: "",
   time: "",
