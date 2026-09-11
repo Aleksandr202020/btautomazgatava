@@ -19,7 +19,7 @@ export function Hero() {
         className="absolute inset-0 size-full object-cover"
         fetchPriority="high"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/55 to-bg/25" />
+      <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/85 to-bg/40" />
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-16 pt-28 md:pb-24">
         <p className="text-xs uppercase tracking-[0.28em] text-accent">{t("heroKicker")}</p>
         <h1 className="mt-4 max-w-3xl whitespace-pre-line font-display text-5xl text-fg md:text-7xl">{t("heroTitle")}</h1>
