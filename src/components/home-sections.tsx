@@ -22,7 +22,7 @@ export function Hero() {
       <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/55 to-bg/25" />
       <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-16 pt-28 md:pb-24">
         <p className="text-xs uppercase tracking-[0.28em] text-accent">{t("heroKicker")}</p>
-        <h1 className="mt-4 max-w-3xl font-display text-5xl text-fg md:text-7xl">{t("heroTitle")}</h1>
+        <h1 className="mt-4 max-w-3xl whitespace-pre-line font-display text-5xl text-fg md:text-7xl">{t("heroTitle")}</h1>
         <p className="mt-5 max-w-xl text-base text-fg/80 md:text-lg">{t("heroLead")}</p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Button size="xl" onClick={openWizard}>
@@ -79,17 +79,54 @@ export function ServicesSection() {
           </article>
         ))}
       </div>
-      <div className="mt-10 rounded-xl border border-border bg-elevated p-6 md:p-8">
-        <h3 className="font-display text-2xl">{t("includedTitle")}</h3>
-        <ul className="mt-5 grid gap-3 sm:grid-cols-2">
-          {SERVICE.includes[lang].map((item) => (
-            <li key={item} className="flex items-start gap-2 text-sm text-fg/90">
-              <Check className="mt-0.5 size-4 shrink-0 text-accent" />
-              {item}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-5 text-sm text-muted">{t("waxNote")}</p>
+      <div className="mt-10 grid gap-6 md:grid-cols-2">
+        <div className="rounded-xl border border-border bg-elevated p-6 md:p-8">
+          <h3 className="font-display text-2xl">{lang === "ru" ? "Внешняя мойка" : lang === "en" ? "Exterior wash" : "Ārējā mazgāšana"}</h3>
+          <ul className="mt-5 grid gap-3">
+            {SERVICE.exterior[lang].map((item) => (
+              <li key={item} className="flex items-start gap-2 text-sm text-fg/90">
+                <Check className="mt-0.5 size-4 shrink-0 text-accent" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-xl border border-border bg-elevated p-6 md:p-8">
+          <h3 className="font-display text-2xl">{lang === "ru" ? "Очистка салона" : lang === "en" ? "Interior clean" : "Salona tīrīšana"}</h3>
+          <ul className="mt-5 grid gap-3">
+            {SERVICE.interior[lang].map((item) => (
+              <li key={item} className="flex items-start gap-2 text-sm text-fg/90">
+                <Check className="mt-0.5 size-4 shrink-0 text-accent" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      <p className="mt-5 text-sm text-muted">{t("waxNote")}</p>
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-border bg-surface p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Professional chemistry</p>
+          <p className="mt-2 font-display text-2xl">{BUSINESS.chemistry}</p>
+          <p className="mt-2 text-sm text-muted">
+            {lang === "ru"
+              ? "В процессе работы используется профессиональная итальянская автохимия DAERG CHIMICA."
+              : lang === "en"
+                ? "Professional Italian car chemistry DAERG CHIMICA is used in the process."
+                : "Darbā izmantojam profesionālo itāļu autoķīmiju DAERG CHIMICA."}
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-surface p-5">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted">Professional equipment</p>
+          <p className="mt-2 font-display text-2xl">{BUSINESS.equipment}</p>
+          <p className="mt-2 text-sm text-muted">
+            {lang === "ru"
+              ? "Для мойки используется профессиональное оборудование Kärcher."
+              : lang === "en"
+                ? "Professional Kärcher equipment is used for washing."
+                : "Mazgāšanai izmantojam profesionālo aprīkojumu Kärcher."}
+          </p>
+        </div>
       </div>
     </section>
   );
@@ -133,6 +170,8 @@ export function AdvantagesSection() {
     { t: t("adv2t"), d: t("adv2d") },
     { t: t("adv3t"), d: t("adv3d") },
     { t: t("adv4t"), d: t("adv4d") },
+    { t: t("adv5t"), d: t("adv5d") },
+    { t: t("adv6t"), d: t("adv6d") },
   ];
   return (
     <section className="mx-auto max-w-6xl px-4 py-20">
