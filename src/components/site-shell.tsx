@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Menu, Phone, X } from "lucide-react";
+import { Menu, MessageCircle, Phone, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { BUSINESS } from "@/lib/catalog";
@@ -183,18 +183,28 @@ export function MobileBar() {
   if (open) return null;
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
+        <Button size="lg" className="h-12 w-full tracking-[0.06em] text-xs" onClick={openWizard}>
+          {t("navBook")}
+        </Button>
+        <a
+          href={`https://wa.me/${BUSINESS.whatsapp}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-12 items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium uppercase tracking-[0.08em]"
+          onClick={() => track("whatsapp_clicked", { place: "mobile-bar" })}
+        >
+          <MessageCircle className="size-4" />
+          {t("whatsapp")}
+        </a>
         <a
           href={`tel:${BUSINESS.phone}`}
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-border text-sm font-medium uppercase tracking-[0.12em]"
+          className="inline-flex h-12 items-center justify-center gap-1.5 rounded-md border border-border text-xs font-medium uppercase tracking-[0.08em]"
           onClick={() => track("phone_clicked", { place: "mobile-bar" })}
         >
           <Phone className="size-4" />
           {t("callCta")}
         </a>
-        <Button size="lg" className="h-12 w-full tracking-[0.08em]" onClick={openWizard}>
-          {t("navBook")}
-        </Button>
       </div>
     </div>
   );
