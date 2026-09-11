@@ -27,29 +27,12 @@ export const SLOT_MINUTES = 60;
 export const WORK_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 export const HOLIDAYS: string[] = [];
 
-export type VehicleId = "car" | "suv";
+export type { VehicleId, LegacyVehicleId } from "./vehicle-ids";
+export { VEHICLES, normalizeVehicleId } from "./vehicle-ids";
+import { VEHICLES, normalizeVehicleId, type VehicleId } from "./vehicle-ids";
+
 export type ExtraId = "fragrance" | "tyres" | "leather" | "antirain" | "discs" | "engine";
 export type ServiceId = "komplekss";
-
-export const VEHICLES: {
-  id: VehicleId;
-  price: number;
-  label: { lv: string; ru: string; en: string };
-  hint: { lv: string; ru: string; en: string };
-}[] = [
-  {
-    id: "car",
-    price: 25,
-    label: { lv: "Vieglais auto", ru: "Легковой", en: "Passenger car" },
-    hint: { lv: "Sedans, hatchback, kupeja", ru: "Седан, хэтчбек, купе", en: "Sedan, hatchback, coupe" },
-  },
-  {
-    id: "suv",
-    price: 30,
-    label: { lv: "SUV / Crossover / Minivan", ru: "SUV / Crossover / Minivan", en: "SUV / Crossover / Minivan" },
-    hint: { lv: "SUV, apvidus, ģimenes", ru: "Внедорожник, кроссовер, минивэн", en: "SUV, crossover, minivan" },
-  },
-];
 
 export const SERVICE = {
   id: "komplekss" as ServiceId,
@@ -147,10 +130,11 @@ export const EXTRAS: {
   { id: "engine", price: 15, label: { lv: "Dzinēja mazgāšana", ru: "Мойка двигателя", en: "Engine bay wash" } },
 ];
 
-export function calcPrice(vehicle: VehicleId, extras: ExtraId[]): number {
-  const base = VEHICLES.find((v) => v.id === vehicle)?.price ?? 0;
-  const extraSum = extras.reduce((sum, id) => {
-    const item = EXTRAS.find((e) => e.id === id);
+export function calcPrice(vehicle: VehicleId | string, extras: ExtraId[]): number {
+  const id = normalizeVehicleId(vehicle);
+  const base = VEHICLES.find((v) => v.id === id)?.price ?? 0;
+  const extraSum = extras.reduce((sum, eid) => {
+    const item = EXTRAS.find((e) => e.id === eid);
     return sum + (item?.price ?? 0);
   }, 0);
   return base + extraSum;
