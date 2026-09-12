@@ -24,6 +24,7 @@ const NAV = [
   { to: "/atsauksmes", key: "navReviews" as const },
   { to: "/buj", key: "navFaq" as const },
   { to: "/kontakti", key: "navContact" as const },
+  { to: "/kabinets", key: "navCabinet" as const },
 ];
 
 export function SiteHeader() {
@@ -147,6 +148,9 @@ export function SiteFooter() {
           </Link>
           <Link to="/pieraksts" className="text-muted hover:text-fg">
             {t("navBook")}
+          </Link>
+          <Link to="/kabinets" className="text-muted hover:text-fg">
+            {t("navCabinet")}
           </Link>
           <Link to="/kontakti" className="text-muted hover:text-fg">
             {t("navContact")}
