@@ -8,9 +8,13 @@ import { useBookingUi, type WizardStep } from "@/lib/booking-ui";
 import { BUSINESS, calcPrice, EXTRAS, SERVICE, VEHICLES } from "@/lib/catalog";
 import { VehicleSelector } from "@/components/booking/VehicleSelector";
 import { ExtrasStep } from "@/components/booking/ExtrasStep";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useLang } from "@/lib/lang";
+import { listUserVehicles, type UserVehicle } from "@/lib/user-vehicles";
+import { PRICE_CATEGORY_LABELS, PRICES, SERVICE_DURATION_MINUTES } from "@/lib/vehicles";
 import { generateSlots, isSlotInPast, upcomingDates } from "@/lib/slots";
 import { cn, formatEuro, track } from "@/lib/utils";
+import type { VehicleId } from "@/lib/catalog";
 
 const STEPS: WizardStep[] = [1, 2, 3, 4, 5, 6, 7];
 
@@ -28,7 +32,7 @@ function weekdayLabel(iso: string, lang: string) {
   }).format(dt);
 }
 
-function localSlots(date: string): SlotsResult {
+function localSlots(date: string): theSlotsResult {
   return {
     date,
     slots: generateSlots().map((time) => ({
@@ -37,6 +41,9 @@ function localSlots(date: string): SlotsResult {
     })),
   };
 }
+
+// keep type alias correct
+type theSlotsResult = SlotsResult;
 
 function icsContent(b: BookingPublic) {
   const stamp = b.date.replace(/-/g, "");
@@ -57,13 +64,58 @@ function googleCalUrl(b: BookingPublic) {
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("BTAUTOMAZGATAVA")}&dates=${dates}&ctz=Europe/Riga&location=${encodeURIComponent(BUSINESS.address)}`;
 }
 
+function applySavedVehicle(
+  v: UserVehicle,
+  lang: "lv" | "ru" | "en",
+  patch: (p: Partial<import("@/lib/booking-ui").Draft>) => void,
+) {
+  const vehicleType = v.priceCategory as VehicleId;
+  patch({
+    vehicleType,
+    carBrand: v.brand,
+    carModel: v.model,
+    carBodyType: v.bodyType,
+    carPriceCategory: v.priceCategory,
+    carPrice: v.price,
+    carPriceLabel: PRICE_CATEGORY_LABELS[v.priceCategory][lang],
+    serviceDuration: SERVICE_DURATION_MINUTES,
+  });
+}
+
 export function BookingWizard({ onClose, embedded }: { onClose?: () => void; embedded?: boolean }) {
   const { t, lang } = useLang();
+  const { user, isPending: userPending } = useCurrentUserState();
   const { step, setStep, draft, patch, reset } = useBookingUi();
   const [done, setDone] = useState<BookingPublic | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [honeypot, setHoneypot] = useState("");
+  const [manualPick, setManualPick] = useState(false);
+
+  const savedQ = useQuery({
+    queryKey: ["user-vehicles"],
+    enabled: Boolean(user) && !userPending,
+    staleTime: 30_000,
+    queryFn: async () => {
+      try {
+        const res = await listUserVehicles();
+        return (res.vehicles ?? []) as UserVehicle[];
+      } catch {
+        return [] as UserVehicle[];
+      }
+    },
+  });
+
+  const saved = savedQ.data ?? [];
+  const showSavedPicker = saved.length > 0 && !manualPick;
+
+  // Prefill default saved car once when wizard opens on step 1
+  useEffect(() => {
+    if (step !== 1 || draft.carBrand || !saved.length) return;
+    const def = saved.find((v) => v.isDefault) ?? saved[0];
+    if (def) applySavedVehicle(def, lang, patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved.length, step]);
 
   const dates = useMemo(() => upcomingDates(14), []);
   const slotsQ = useQuery<SlotsResult>({
@@ -77,13 +129,9 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
       try {
         const result = await getAvailableSlots({ data: { date } });
         if (result?.slots?.length) return result as SlotsResult;
-        // A valid working date should never silently render an empty grid.
-        // Keep the booking UI usable if the RPC returns an unexpected empty payload.
         return localSlots(date);
       } catch (err) {
         console.error("booking availability RPC failed", err);
-        // Availability is advisory; createBooking still performs the authoritative
-        // server-side slot check before inserting the booking.
         return localSlots(date);
       }
     },
@@ -141,6 +189,7 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
   function finish() {
     reset();
     setDone(null);
+    setManualPick(false);
     onClose?.();
   }
 
@@ -160,11 +209,111 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
         {step === 1 && (
           <div className="space-y-4">
             <h2 className="font-display text-3xl">{t("stepVehicle")}</h2>
-            <VehicleSelector
-              value={{ carBrand: draft.carBrand, carModel: draft.carModel, carPriceCategory: draft.carPriceCategory }}
-              onChange={(sel) => patch({ vehicleType: sel.vehicleType, carBrand: sel.carBrand, carModel: sel.carModel, carBodyType: sel.carBodyType, carPriceCategory: sel.carPriceCategory, carPrice: sel.carPrice, carPriceLabel: sel.carPriceLabel, serviceDuration: sel.serviceDuration })}
-            />
-            <Button className="w-full" size="lg" disabled={!draft.carBrand || !draft.carModel || ((draft.carBrand === "Other" || draft.carModel === "Other") && !draft.carPriceCategory)} onClick={() => go(2)}>{t("next")}</Button>
+
+            {showSavedPicker ? (
+              <div className="space-y-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted">{t("chooseSavedVehicle")}</p>
+                {saved.map((v) => {
+                  const selected =
+                    draft.carBrand === v.brand &&
+                    draft.carModel === v.model &&
+                    draft.carPriceCategory === v.priceCategory;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => applySavedVehicle(v, lang, patch)}
+                      className={cn(
+                        "w-full rounded-xl border p-4 text-left",
+                        selected ? "border-fg bg-elevated" : "border-border",
+                      )}
+                    >
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="font-medium">
+                          {v.brand === "Other" ? t("otherBrand") : v.brand}{" "}
+                          {v.model === "Other" ? "" : v.model}
+                        </span>
+                        <span className="tabular-nums">{formatEuro(v.price, lang)}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        {PRICE_CATEGORY_LABELS[v.priceCategory][lang]}
+                        {v.isDefault ? ` · ${t("defaultVehicle")}` : ""}
+                      </p>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="w-full rounded-lg border border-dashed border-border px-3 py-3 text-sm text-muted hover:border-fg hover:text-fg"
+                  onClick={() => {
+                    setManualPick(true);
+                    patch({
+                      vehicleType: null,
+                      carBrand: "",
+                      carModel: "",
+                      carBodyType: null,
+                      carPriceCategory: null,
+                      carPrice: null,
+                      carPriceLabel: "",
+                      serviceDuration: 60,
+                    });
+                  }}
+                >
+                  {t("orOtherVehicle")}
+                </button>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  disabled={!draft.carBrand || !draft.carModel || !draft.vehicleType}
+                  onClick={() => go(2)}
+                >
+                  {t("next")}
+                </Button>
+              </div>
+            ) : (
+              <>
+                {saved.length > 0 ? (
+                  <button
+                    type="button"
+                    className="text-sm text-muted underline"
+                    onClick={() => setManualPick(false)}
+                  >
+                    ← {t("chooseSavedVehicle")}
+                  </button>
+                ) : null}
+                <VehicleSelector
+                  value={{
+                    carBrand: draft.carBrand,
+                    carModel: draft.carModel,
+                    carPriceCategory: draft.carPriceCategory,
+                  }}
+                  onChange={(sel) =>
+                    patch({
+                      vehicleType: sel.vehicleType,
+                      carBrand: sel.carBrand,
+                      carModel: sel.carModel,
+                      carBodyType: sel.carBodyType,
+                      carPriceCategory: sel.carPriceCategory,
+                      carPrice: sel.carPrice,
+                      carPriceLabel: sel.carPriceLabel,
+                      serviceDuration: sel.serviceDuration,
+                    })
+                  }
+                />
+                <Button
+                  className="w-full"
+                  size="lg"
+                  disabled={
+                    !draft.carBrand ||
+                    !draft.carModel ||
+                    ((draft.carBrand === "Other" || draft.carModel === "Other") && !draft.carPriceCategory)
+                  }
+                  onClick={() => go(2)}
+                >
+                  {t("next")}
+                </Button>
+              </>
+            )}
           </div>
         )}
 
