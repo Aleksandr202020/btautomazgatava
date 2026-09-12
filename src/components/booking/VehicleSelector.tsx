@@ -68,6 +68,8 @@ export function VehicleSelector({ value, onChange }: Props) {
   const [modelQuery, setModelQuery] = useState("");
   /** When true, force showing brand list even if brand already selected (user tapped "change"). */
   const [editingBrand, setEditingBrand] = useState(false);
+  /** When true, force showing model list even if model already selected. */
+  const [editingModel, setEditingModel] = useState(false);
 
   const brands = useMemo(() => {
     const q = brandQuery.trim().toLowerCase();
@@ -96,11 +98,16 @@ export function VehicleSelector({ value, onChange }: Props) {
     (value.carBrand === OTHER_BRAND || value.carModel === OTHER_MODEL);
 
   const showBrandPicker = !value.carBrand || editingBrand;
+  const showModelPicker =
+    Boolean(value.carBrand) &&
+    !showBrandPicker &&
+    (!value.carModel || editingModel);
 
   function pickBrand(brand: string) {
     setModelQuery("");
     setBrandQuery("");
     setEditingBrand(false);
+    setEditingModel(false);
     onChange({
       vehicleType: "car",
       carBrand: brand,
@@ -117,6 +124,7 @@ export function VehicleSelector({ value, onChange }: Props) {
     setModelQuery("");
     setBrandQuery("");
     setEditingBrand(true);
+    setEditingModel(false);
     onChange({
       vehicleType: "car",
       carBrand: "",
@@ -131,6 +139,8 @@ export function VehicleSelector({ value, onChange }: Props) {
 
   function pickModel(model: string) {
     const brand = value.carBrand;
+    setModelQuery("");
+    setEditingModel(false);
     if (brand === OTHER_BRAND || model === OTHER_MODEL) {
       onChange({
         vehicleType: (value.carPriceCategory as VehicleId) || "car",
@@ -154,6 +164,21 @@ export function VehicleSelector({ value, onChange }: Props) {
       carPrice: r.price,
       carPriceLabel: r.priceLabel[lang],
       serviceDuration: r.serviceDuration,
+    });
+  }
+
+  function changeModel() {
+    setModelQuery("");
+    setEditingModel(true);
+    onChange({
+      vehicleType: "car",
+      carBrand: value.carBrand,
+      carModel: "",
+      carBodyType: null,
+      carPriceCategory: "car",
+      carPrice: PRICES.car,
+      carPriceLabel: PRICE_CATEGORY_LABELS.car[lang],
+      serviceDuration: SERVICE_DURATION_MINUTES,
     });
   }
 
@@ -187,6 +212,15 @@ export function VehicleSelector({ value, onChange }: Props) {
 
   const brandDisplay =
     value.carBrand === OTHER_BRAND ? labels.otherBrand[lang] : value.carBrand;
+  const modelDisplay =
+    value.carModel === OTHER_MODEL ? labels.otherModel[lang] : value.carModel;
+
+  const selectionComplete =
+    Boolean(value.carBrand) &&
+    Boolean(value.carModel) &&
+    !editingBrand &&
+    !editingModel &&
+    (!needManual || Boolean(value.carPriceCategory));
 
   return (
     <div className="space-y-5">
@@ -242,13 +276,29 @@ export function VehicleSelector({ value, onChange }: Props) {
       {value.carBrand && !showBrandPicker ? (
         <div>
           <label className="text-xs uppercase tracking-[0.18em] text-muted">{labels.model[lang]}</label>
-          {value.carBrand !== OTHER_BRAND ? (
+
+          {/* Locked model row */}
+          {!showModelPicker && value.carModel ? (
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex min-w-0 flex-1 items-center rounded-lg border border-fg bg-elevated px-3 py-2.5">
+                <span className="truncate text-sm font-medium">{modelDisplay}</span>
+              </div>
+              <button
+                type="button"
+                onClick={changeModel}
+                className="shrink-0 rounded-lg border border-border px-3 py-2.5 text-sm text-muted hover:border-fg hover:text-fg"
+              >
+                {labels.change[lang]}
+              </button>
+            </div>
+          ) : value.carBrand !== OTHER_BRAND ? (
             <>
               <input
                 type="search"
                 value={modelQuery}
                 onChange={(e) => setModelQuery(e.target.value)}
                 placeholder={labels.search[lang]}
+                autoFocus={editingModel}
                 className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2.5 text-sm outline-none focus:border-fg"
               />
               <div className="mt-2 max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-border">
@@ -282,7 +332,8 @@ export function VehicleSelector({ value, onChange }: Props) {
         </div>
       ) : null}
 
-      {needManual ? (
+      {/* Manual category — only when Other brand/model and model is locked */}
+      {needManual && !editingModel && value.carModel ? (
         <div>
           <label className="text-xs uppercase tracking-[0.18em] text-muted">{labels.type[lang]}</label>
           <div className="mt-2 space-y-2">
@@ -307,7 +358,8 @@ export function VehicleSelector({ value, onChange }: Props) {
         </div>
       ) : null}
 
-      {resolved && value.carModel && (!needManual || value.carPriceCategory) ? (
+      {/* Summary card — only when selection is complete */}
+      {selectionComplete && resolved ? (
         <div className="rounded-xl border border-fg bg-elevated p-4 text-sm">
           <p className="text-xs uppercase tracking-[0.18em] text-muted">{labels.yourCar[lang]}</p>
           <p className="mt-1 font-display text-xl">
