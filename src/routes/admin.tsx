@@ -190,6 +190,11 @@ function AdminPage() {
             <p className="text-sm text-danger">{t("errorGeneric")}</p>
           ) : (
             <>
+              {"dbOk" in dash && dash.dbOk === false ? (
+                <p className="rounded-lg border border-warn/40 bg-elevated px-3 py-2 text-sm text-warn">
+                  DATABASE_URL nav iestatīts Vercel. Pieraksti netiek saglabāti. Pievienojiet Neon Postgres.
+                </p>
+              ) : null}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <Stat label={t("adminBookings")} value={String(dash.count)} />
                 <Stat label={t("adminRevenue")} value={formatEuro(dash.revenue, lang)} />
