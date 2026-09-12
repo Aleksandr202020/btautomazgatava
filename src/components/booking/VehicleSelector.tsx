@@ -66,6 +66,8 @@ export function VehicleSelector({ value, onChange }: Props) {
   const { lang } = useLang();
   const [brandQuery, setBrandQuery] = useState("");
   const [modelQuery, setModelQuery] = useState("");
+  /** When true, force showing brand list even if brand already selected (user tapped "change"). */
+  const [editingBrand, setEditingBrand] = useState(false);
 
   const brands = useMemo(() => {
     const q = brandQuery.trim().toLowerCase();
@@ -93,11 +95,31 @@ export function VehicleSelector({ value, onChange }: Props) {
     Boolean(value.carModel) &&
     (value.carBrand === OTHER_BRAND || value.carModel === OTHER_MODEL);
 
+  const showBrandPicker = !value.carBrand || editingBrand;
+
   function pickBrand(brand: string) {
     setModelQuery("");
+    setBrandQuery("");
+    setEditingBrand(false);
     onChange({
       vehicleType: "car",
       carBrand: brand,
+      carModel: "",
+      carBodyType: null,
+      carPriceCategory: "car",
+      carPrice: PRICES.car,
+      carPriceLabel: PRICE_CATEGORY_LABELS.car[lang],
+      serviceDuration: SERVICE_DURATION_MINUTES,
+    });
+  }
+
+  function changeBrand() {
+    setModelQuery("");
+    setBrandQuery("");
+    setEditingBrand(true);
+    onChange({
+      vehicleType: "car",
+      carBrand: "",
       carModel: "",
       carBodyType: null,
       carPriceCategory: "car",
@@ -160,39 +182,64 @@ export function VehicleSelector({ value, onChange }: Props) {
     price: { lv: "Cena", ru: "Стоимость", en: "Price" },
     duration: { lv: "Standarta laiks", ru: "Стандартное время", en: "Standard time" },
     minutes: { lv: "minūtes", ru: "минут", en: "minutes" },
+    change: { lv: "Mainīt", ru: "Изменить", en: "Change" },
   };
+
+  const brandDisplay =
+    value.carBrand === OTHER_BRAND ? labels.otherBrand[lang] : value.carBrand;
 
   return (
     <div className="space-y-5">
+      {/* Brand step */}
       <div>
         <label className="text-xs uppercase tracking-[0.18em] text-muted">{labels.brand[lang]}</label>
-        <input
-          type="search"
-          value={brandQuery}
-          onChange={(e) => setBrandQuery(e.target.value)}
-          placeholder={labels.search[lang]}
-          className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2.5 text-sm outline-none focus:border-fg"
-        />
-        <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-border">
-          {brands.map((b) => (
+
+        {!showBrandPicker && value.carBrand ? (
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center rounded-lg border border-fg bg-elevated px-3 py-2.5">
+              <span className="truncate text-sm font-medium">{brandDisplay}</span>
+            </div>
             <button
-              key={b}
               type="button"
-              onClick={() => pickBrand(b === OTHER_BRAND ? OTHER_BRAND : b)}
-              className={cn(
-                "block w-full border-b border-line px-3 py-2.5 text-left text-sm last:border-0",
-                value.carBrand === b || (b === OTHER_BRAND && value.carBrand === OTHER_BRAND)
-                  ? "bg-elevated font-medium"
-                  : "hover:bg-elevated/60",
-              )}
+              onClick={changeBrand}
+              className="shrink-0 rounded-lg border border-border px-3 py-2.5 text-sm text-muted hover:border-fg hover:text-fg"
             >
-              {b === OTHER_BRAND ? labels.otherBrand[lang] : b}
+              {labels.change[lang]}
             </button>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <>
+            <input
+              type="search"
+              value={brandQuery}
+              onChange={(e) => setBrandQuery(e.target.value)}
+              placeholder={labels.search[lang]}
+              autoFocus={editingBrand}
+              className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2.5 text-sm outline-none focus:border-fg"
+            />
+            <div className="mt-2 max-h-56 overflow-y-auto overscroll-contain rounded-lg border border-border">
+              {brands.map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => pickBrand(b === OTHER_BRAND ? OTHER_BRAND : b)}
+                  className={cn(
+                    "block w-full border-b border-line px-3 py-2.5 text-left text-sm last:border-0",
+                    value.carBrand === b || (b === OTHER_BRAND && value.carBrand === OTHER_BRAND)
+                      ? "bg-elevated font-medium"
+                      : "hover:bg-elevated/60",
+                  )}
+                >
+                  {b === OTHER_BRAND ? labels.otherBrand[lang] : b}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
-      {value.carBrand ? (
+      {/* Model step — only when brand is locked */}
+      {value.carBrand && !showBrandPicker ? (
         <div>
           <label className="text-xs uppercase tracking-[0.18em] text-muted">{labels.model[lang]}</label>
           {value.carBrand !== OTHER_BRAND ? (
@@ -204,7 +251,7 @@ export function VehicleSelector({ value, onChange }: Props) {
                 placeholder={labels.search[lang]}
                 className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2.5 text-sm outline-none focus:border-fg"
               />
-              <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-border">
+              <div className="mt-2 max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-border">
                 {models.map((m) => (
                   <button
                     key={m}
