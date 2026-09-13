@@ -8,8 +8,8 @@ import { useBookingUi, type WizardStep } from "@/lib/booking-ui";
 import { BUSINESS, calcPrice, EXTRAS, SERVICE, VEHICLES, type VehicleId } from "@/lib/catalog";
 import { VehicleSelector } from "@/components/booking/VehicleSelector";
 import { ExtrasStep } from "@/components/booking/ExtrasStep";
+import { LoginForm } from "@/components/auth/AuthForms";
 import { authEnabled } from "@/lib/auth/client";
-import { SignInButtons } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useLang } from "@/lib/lang";
 import { listUserVehicles, type UserVehicle } from "@/lib/user-vehicles";
@@ -228,7 +228,7 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
       <div className="flex-1 overflow-y-auto px-4 py-6">
         {step === 1 && (
           <div className="space-y-5">
-            <h2 className="font-display text-3xl">{t("stepAccount")}</h2>
+            <h2 className="font-display text-3xl">{t("signInTitle")}</h2>
             <p className="text-sm text-muted">{t("stepAccountLead")}</p>
             {userPending ? (
               <p className="text-sm text-muted">…</p>
@@ -244,10 +244,13 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
                 </Button>
               </div>
             ) : authEnabled ? (
-              <div className="flex flex-col items-stretch gap-4">
-                <p className="text-sm text-muted">{t("bookingRequireAuth")}</p>
-                <SignInButtons callbackURL="/pieraksts" />
-              </div>
+              <LoginForm
+                embedded
+                callbackURL="/pieraksts"
+                onSuccess={() => {
+                  go(2);
+                }}
+              />
             ) : (
               <div className="space-y-4">
                 <p className="text-sm text-muted">{t("authDisabledHint")}</p>
