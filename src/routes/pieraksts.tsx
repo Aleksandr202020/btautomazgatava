@@ -9,7 +9,7 @@ function Page() {
   const { t } = useLang();
   return (
     <>
-      <PageHero title={t("bookCta")} lead={t("servicesLead")} />
+      <PageHero title={t("bookCta")} lead={t("stepAccountLead")} />
       <div className="mx-auto max-w-lg border-x border-line">
         <BookingWizard embedded />
       </div>
