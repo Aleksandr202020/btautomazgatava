@@ -4,7 +4,6 @@ import { useState } from "react";
 import { BeforeAfter } from "@/components/before-after";
 import { Button } from "@/components/ui/button";
 import { BUSINESS, EXTRAS, FAQ, GALLERY, REVIEWS, SERVICE, VEHICLES } from "@/lib/catalog";
-import { useBookingUi } from "@/lib/booking-ui";
 import { useLang } from "@/lib/lang";
 import { formatEuro, track } from "@/lib/utils";
 
@@ -173,7 +172,7 @@ export function GallerySection() {
         <div className="mt-6 flex flex-wrap gap-2">
           {(
             [
-              ["all", t("galleryTitle")],
+              ["all", t("navGallery")],
               ["exterior", t("catExterior")],
               ["interior", t("catInterior")],
               ["detailing", t("catDetail")],
@@ -184,16 +183,22 @@ export function GallerySection() {
               type="button"
               onClick={() => setFilter(id)}
               className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-                filter === id ? "bg-accent text-white" : "bg-white text-muted border border-border"
+                filter === id ? "bg-accent text-white" : "border border-border bg-white text-muted"
               }`}
             >
               {label}
             </button>
           ))}
         </div>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        <div className="mt-10">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted">{t("catBeforeAfter")}</p>
+          <BeforeAfter />
+        </div>
+        <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-3">
           {items.map((g) => (
-            <BeforeAfter key={g.id} before={g.before} after={g.after} label={g.label} />
+            <figure key={g.src} className="overflow-hidden rounded-xl border border-border bg-white">
+              <img src={g.src} alt={g.alt} loading="lazy" className="aspect-[4/3] w-full object-cover" />
+            </figure>
           ))}
         </div>
       </div>
@@ -202,7 +207,7 @@ export function GallerySection() {
 }
 
 export function ReviewsSection() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   return (
     <section id="atsauksmes" className="scroll-mt-24 border-t border-line bg-white">
       <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
@@ -211,8 +216,11 @@ export function ReviewsSection() {
         <div className="mt-10 grid gap-4 md:grid-cols-3">
           {REVIEWS.map((r) => (
             <article key={r.name} className="rounded-xl border border-border bg-elevated p-5">
-              <p className="text-sm leading-relaxed text-muted">“{r.text}”</p>
-              <p className="mt-4 text-sm font-semibold">{r.name}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">{r.name}</p>
+                <p className="text-xs text-accent">{"●".repeat(r.rating)}</p>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-muted">“{r.text[lang]}”</p>
             </article>
           ))}
         </div>
@@ -356,5 +364,3 @@ export function LegalLayout({ title, children }: { title: string; children: Reac
     </>
   );
 }
-
-void useBookingUi;
