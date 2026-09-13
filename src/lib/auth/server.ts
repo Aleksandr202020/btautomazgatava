@@ -115,15 +115,23 @@ const baseURL = explicitBaseURL ?? {
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
+const vercelUrl = env("VERCEL_URL"); // e.g. btautomazgatava.vercel.app (no scheme)
+const vercelOrigins: string[] = [
+  "https://btautomazgatava.vercel.app",
+  ...(vercelUrl ? [`https://${vercelUrl.replace(/^https?:\/\//, "")}`] : []),
+];
 const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
+  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS, ...vercelOrigins]
   : [
       // Host wildcards (matched against Origin's host)
       ...previewAllowedHosts,
       // Full-origin wildcards (matched against Origin)
       ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
       ...LOCAL_DEV_ORIGINS,
+      ...vercelOrigins,
     ];
+// De-dupe
+const trustedOriginsUnique = [...new Set(trustedOrigins.filter(Boolean))];
 
 const databaseUrl = env("DATABASE_URL");
 
@@ -182,7 +190,7 @@ export const auth = betterAuth({
   // CSRF / origin check for credentialed auth POSTs (email sign-up/sign-in, …).
   // See `trustedOrigins` construction above — must cover live preview hosts AND
   // local loopback variants, or clients get "Invalid origin".
-  trustedOrigins,
+  trustedOrigins: trustedOriginsUnique,
 
   // Encrypt broker-issued OAuth tokens at rest, and treat the broker's upstreams
   // as trusted first-party identities. The broker owns identity and X emails are
