@@ -44,7 +44,7 @@ export const Route = createRootRoute({
         content:
           "Rokas automazgātava Rīgā, Krasta iela 42. Vieglais auto 25 €, Jeep / Crossover / Minivan 30 €. Katru dienu 09:00–21:00 pēc pieraksta.",
       },
-      { name: "theme-color", content: "#080809" },
+      { name: "theme-color", content: "#24a0ed" },
       { name: "robots", content: "index,follow" },
     ],
     links: [
@@ -56,7 +56,7 @@ export const Route = createRootRoute({
       { rel: "preconnect", href: "https://fonts.gstatic.com" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Outfit:wght@400;500;600&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
       },
       { rel: "canonical", href: "/" },
     ],
