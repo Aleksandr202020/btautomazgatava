@@ -1,16 +1,15 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { LoginForm } from "@/components/auth/AuthForms";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { RegisterForm } from "@/components/auth/AuthForms";
 import { authEnabled } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { PageHero } from "@/components/home-sections";
 import { useLang } from "@/lib/lang";
-import { Navigate } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/login")({
-  component: LoginPage,
+export const Route = createFileRoute("/register")({
+  component: RegisterPage,
 });
 
-function LoginPage() {
+function RegisterPage() {
   const { t } = useLang();
   const { user, isPending } = useCurrentUserState();
 
@@ -24,10 +23,10 @@ function LoginPage() {
 
   return (
     <>
-      <PageHero title={t("signInTitle")} lead={t("bookingRequireAuth")} />
+      <PageHero title={t("registerTitle")} lead={t("registerLead")} />
       <div className="mx-auto max-w-md px-4 py-10">
         {authEnabled ? (
-          <LoginForm callbackURL="/kabinets" />
+          <RegisterForm callbackURL="/kabinets" />
         ) : (
           <p className="text-center text-sm text-muted">{t("authDisabledHint")}</p>
         )}

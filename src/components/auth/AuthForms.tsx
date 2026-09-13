@@ -1,7 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { authClient, authEnabled, signIn } from "@/lib/auth/client";
+import { authClient, authEnabled } from "@/lib/auth/client";
 import { SignInButtons } from "@/lib/auth/gates";
 import { useLang } from "@/lib/lang";
 import { cn } from "@/lib/utils";
@@ -163,7 +163,6 @@ export function RegisterForm({ callbackURL = "/kabinets" }: RegisterProps) {
         setError(err.message || t("registerFailed"));
         return;
       }
-      // Optional: store phone in comment path later; phone is collected for UX parity with ENRI.
       void phone;
       void navigate({ to: callbackURL });
     } catch {
@@ -259,6 +258,3 @@ export function RegisterForm({ callbackURL = "/kabinets" }: RegisterProps) {
     </div>
   );
 }
-
-/** Keep type-checker happy when OAuth helper is tree-shaken in pure email mode. */
-void signIn;
