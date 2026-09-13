@@ -282,7 +282,8 @@ const globalBoot = globalThis as typeof globalThis & {
 if (typeof window === "undefined" && resolveDbSource() === "pglite") {
   globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
     globalBoot.__pgBootstrapPromise__ = undefined;
+    // Do not rethrow — a failed bootstrap during `vite build` on Vercel must
+    // not take down the whole deployment (e.g. PGLite wasm ENOENT in CI).
     console.error("[db] PGLite bootstrap failed:", err);
-    throw err;
   });
 }
