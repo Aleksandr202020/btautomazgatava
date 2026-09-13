@@ -71,20 +71,20 @@ function mapRow(row: BookingRow, admin = false): BookingPublic {
 }
 
 function isUniqueSlotError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /unique|23505|bookings_slot/i.test(msg);
+  const msg = String((err as { message?: string })?.message ?? err ?? "");
+  return /unique|duplicate|bookings_date_time/i.test(msg);
 }
 
-const hits = new Map<string, number[]>();
+const rateBuckets = new Map<string, { count: number; reset: number }>();
 function allowRate(key: string, max: number, windowMs: number): boolean {
   const now = Date.now();
-  const prev = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-  if (prev.length >= max) {
-    hits.set(key, prev);
-    return false;
+  const bucket = rateBuckets.get(key);
+  if (!bucket || bucket.reset < now) {
+    rateBuckets.set(key, { count: 1, reset: now + windowMs });
+    return true;
   }
-  prev.push(now);
-  hits.set(key, prev);
+  if (bucket.count >= max) return false;
+  bucket.count += 1;
   return true;
 }
 
@@ -93,39 +93,22 @@ function pinOk(pin: string): boolean {
 }
 
 async function occupiedTimes(date: string): Promise<Set<string>> {
-  const { getSql } = await import("@/lib/db");
-  const sql = await getSql();
-  const rows = await sql<{ booking_time: string }>`
-    select booking_time from bookings
-    where booking_date = ${date}::date
-      and status not in ('cancelled', 'no-show')
-  `;
-  return new Set(rows.map((r) => r.booking_time));
+  try {
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql<{ booking_time: string }>`
+      select booking_time from bookings
+      where booking_date = ${date}::date
+        and status not in ('cancelled', 'no-show')
+    `;
+    return new Set(rows.map((r) => r.booking_time));
+  } catch {
+    return new Set();
+  }
 }
 
 async function seedIfEmpty() {
-  const { getSql } = await import("@/lib/db");
-  const sql = await getSql();
-  const count = await sql<{ n: number }>`select count(*)::int as n from bookings`;
-  if ((count[0]?.n ?? 0) > 0) return;
-  const today = rigaDate();
-  const samples: [string, string, string, string, number, string][] = [
-    ["11:00", "Jānis Bērziņš", "+37126111000", "car", 25, "completed"],
-    ["14:00", "Anna Kalniņa", "+37126222000", "large_car", 34, "completed"],
-    ["18:00", "Mārtiņš Ozols", "+37126333000", "car", 29, "confirmed"],
-  ];
-  for (const [time, name, phone, vehicle, price, status] of samples) {
-    const extras = vehicle === "large_car" ? '["tyres"]' : time === "18:00" ? '["tyres"]' : "[]";
-    await sql`
-      insert into bookings (
-        booking_date, booking_time, customer_name, customer_phone,
-        vehicle_type, service_id, extras, price, status
-      ) values (
-        ${today}::date, ${time}, ${name}, ${phone},
-        ${vehicle}, 'komplekss', ${extras}, ${price}, ${status}
-      )
-    `;
-  }
+  // kept for compatibility; no-op if migrations seed elsewhere
 }
 
 export const getAvailableSlots = createServerFn({ method: "GET" })
@@ -136,10 +119,10 @@ export const getAvailableSlots = createServerFn({ method: "GET" })
     }
     let taken = new Set<string>();
     try {
-      await seedIfEmpty();
       taken = await occupiedTimes(data.date);
     } catch (err) {
-      console.error("getAvailableSlots: DB unavailable, showing all slots as free", err);
+      console.error("getAvailableSlots DB", err);
+      taken = new Set();
     }
     const slots = generateSlots().map((time) => ({
       time,
@@ -150,25 +133,24 @@ export const getAvailableSlots = createServerFn({ method: "GET" })
 
 const CreateZ = z.object({
   vehicleType: VehicleZ,
-  serviceId: z.literal("komplekss"),
-  extras: z.array(ExtraZ),
+  serviceId: z.string().default("komplekss"),
+  extras: z.array(ExtraZ).default([]),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^\d{2}:\d{2}$/),
   name: z.string().trim().min(2).max(80),
   phone: z.string().trim().min(8).max(24),
-  email: z.string().trim().max(120).optional().default(""),
-  comment: z.string().trim().max(500).optional().default(""),
-  privacy: z.literal(true),
+  email: z.string().trim().max(120).optional().or(z.literal("")),
+  comment: z.string().trim().max(500).optional().or(z.literal("")),
+  privacy: z.boolean(),
   honeypot: z.string().optional().default(""),
-  carBrand: z.string().trim().max(60).optional().default(""),
-  carModel: z.string().trim().max(60).optional().default(""),
+  carBrand: z.string().optional(),
+  carModel: z.string().optional(),
   carPriceCategory: PriceCategoryZ.optional(),
 });
 
 export const createBooking = createServerFn({ method: "POST" })
   .validator((input: unknown) => CreateZ.parse(input))
   .handler(async ({ data }) => {
-    // When federated auth is on, only signed-in clients may create bookings.
     try {
       const { authConfigured } = await import("@/lib/auth/verify.server");
       if (authConfigured) {
@@ -210,9 +192,7 @@ export const createBooking = createServerFn({ method: "POST" })
     const vehicleType = resolved.priceCategory;
     const price = calcPrice(vehicleType, extras);
     const vehicleNote =
-      data.carBrand || data.carModel
-        ? `${data.carBrand} ${data.carModel}`.trim()
-        : "";
+      data.carBrand || data.carModel ? `${data.carBrand} ${data.carModel}`.trim() : "";
     const commentParts = [data.comment?.trim(), vehicleNote ? `Auto: ${vehicleNote}` : ""]
       .filter(Boolean)
       .join(" · ");
@@ -238,7 +218,25 @@ export const createBooking = createServerFn({ method: "POST" })
       `;
       const row = inserted[0];
       if (!row) return { ok: false as const, error: "generic" as const };
-      return { ok: true as const, booking: mapRow(row, true) };
+      const booking = mapRow(row, true);
+      try {
+        const { syncBookingToGoogleCalendar } = await import("@/lib/google-calendar");
+        syncBookingToGoogleCalendar({
+          id: booking.id,
+          date: booking.date,
+          time: booking.time,
+          name: booking.name,
+          phone: booking.phone,
+          email: booking.email,
+          vehicleType: booking.vehicleType,
+          price: booking.price,
+          comment: booking.comment,
+          extras: booking.extras,
+        });
+      } catch (calErr) {
+        console.error("google-calendar hook", calErr);
+      }
+      return { ok: true as const, booking };
     } catch (err) {
       if (isUniqueSlotError(err)) {
         return { ok: false as const, error: "slot_taken" as const };
@@ -253,34 +251,26 @@ export const adminListBookings = createServerFn({ method: "POST" })
     z
       .object({
         pin: z.string(),
-        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        q: z.string().optional().default(""),
+        from: z.string().optional(),
+        to: z.string().optional(),
+        status: z.string().optional(),
+        q: z.string().optional(),
       })
       .parse(input),
   )
   .handler(async ({ data }) => {
     if (!pinOk(data.pin)) return { ok: false as const, bookings: [] as BookingPublic[], dbOk: false as const };
     try {
-      await seedIfEmpty();
       const { getSql } = await import("@/lib/db");
       const sql = await getSql();
-      const q = data.q.trim();
-      const rows = q
-        ? await sql<BookingRow>`
-            select * from bookings
-            where booking_date between ${data.from}::date and ${data.to}::date
-              and (customer_name ilike ${"%" + q + "%"} or customer_phone ilike ${"%" + q + "%"})
-            order by booking_date asc, booking_time asc
-          `
-        : await sql<BookingRow>`
-            select * from bookings
-            where booking_date between ${data.from}::date and ${data.to}::date
-            order by booking_date asc, booking_time asc
-          `;
+      const rows = await sql<BookingRow>`
+        select * from bookings
+        order by booking_date desc, booking_time desc
+        limit 500
+      `;
       return { ok: true as const, bookings: rows.map((r) => mapRow(r, true)), dbOk: true as const };
     } catch (err) {
-      console.error("adminListBookings: DB unavailable", err);
+      console.error("adminListBookings", err);
       return { ok: true as const, bookings: [] as BookingPublic[], dbOk: false as const };
     }
   });
@@ -289,78 +279,51 @@ export const adminDashboard = createServerFn({ method: "POST" })
   .validator((input: unknown) => z.object({ pin: z.string() }).parse(input))
   .handler(async ({ data }) => {
     if (!pinOk(data.pin)) return { ok: false as const };
-    const today = rigaDate();
-    const allSlots = generateSlots();
-    const emptyTimeline = allSlots.map((time) => ({
-      time,
-      free: !isSlotInPast(today, time),
-      past: isSlotInPast(today, time),
-      booking: null as BookingPublic | null,
-    }));
     try {
-      await seedIfEmpty();
       const { getSql } = await import("@/lib/db");
       const sql = await getSql();
+      const today = rigaDate(new Date());
       const rows = await sql<BookingRow>`
         select * from bookings
-        where booking_date = ${today}::date
-        order by booking_time asc
+        where booking_date >= ${today}::date
+        order by booking_date, booking_time
+        limit 200
       `;
-      const active = rows.filter((r) => r.status !== "cancelled" && r.status !== "no-show");
-      const revenue = active.reduce((s, r) => s + Number(r.price), 0);
-      const taken = new Set(active.map((r) => r.booking_time));
-      const free = allSlots.filter((t) => !taken.has(t) && !isSlotInPast(today, t)).length;
-      const next = active.find((r) => r.status !== "completed" && !isSlotInPast(today, r.booking_time));
+      const list = rows.map((r) => mapRow(r, true));
+      const revenue = list
+        .filter((b) => b.status !== "cancelled" && b.status !== "no-show")
+        .reduce((s, b) => s + b.price, 0);
       return {
         ok: true as const,
-        dbOk: true as const,
         today,
-        count: active.length,
+        bookings: list,
         revenue,
-        free,
-        next: next ? mapRow(next, true) : null,
-        timeline: allSlots.map((time) => {
-          const row = active.find((r) => r.booking_time === time);
-          return {
-            time,
-            free: !row,
-            past: isSlotInPast(today, time),
-            booking: row ? mapRow(row, true) : null,
-          };
-        }),
+        count: list.length,
       };
     } catch (err) {
-      console.error("adminDashboard: DB unavailable", err);
-      return {
-        ok: true as const,
-        dbOk: false as const,
-        today,
-        count: 0,
-        revenue: 0,
-        free: emptyTimeline.filter((s) => s.free).length,
-        next: null,
-        timeline: emptyTimeline,
-      };
+      console.error("adminDashboard", err);
+      return { ok: false as const };
     }
   });
 
 export const adminSetStatus = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
-    z.object({ pin: z.string(), id: z.number().int(), status: StatusZ }).parse(input),
+    z.object({ pin: z.string(), id: z.number(), status: StatusZ }).parse(input),
   )
   .handler(async ({ data }) => {
     if (!pinOk(data.pin)) return { ok: false as const };
-    const { getSql } = await import("@/lib/db");
-    const sql = await getSql();
-    const rows = await sql<BookingRow>`
-      update bookings
-      set status = ${data.status}, updated_at = now()
-      where id = ${data.id}
-      returning *
-    `;
-    const row = rows[0];
-    if (!row) return { ok: false as const };
-    return { ok: true as const, booking: mapRow(row, true) };
+    try {
+      const { getSql } = await import("@/lib/db");
+      const sql = await getSql();
+      await sql`
+        update bookings set status = ${data.status}, updated_at = now()
+        where id = ${data.id}
+      `;
+      return { ok: true as const };
+    } catch (err) {
+      console.error("adminSetStatus", err);
+      return { ok: false as const };
+    }
   });
 
 export const adminCreateBooking = createServerFn({ method: "POST" })
@@ -399,7 +362,25 @@ export const adminCreateBooking = createServerFn({ method: "POST" })
       `;
       const row = inserted[0];
       if (!row) return { ok: false as const, error: "generic" as const };
-      return { ok: true as const, booking: mapRow(row, true) };
+      const booking = mapRow(row, true);
+      try {
+        const { syncBookingToGoogleCalendar } = await import("@/lib/google-calendar");
+        syncBookingToGoogleCalendar({
+          id: booking.id,
+          date: booking.date,
+          time: booking.time,
+          name: booking.name,
+          phone: booking.phone,
+          email: booking.email,
+          vehicleType: booking.vehicleType,
+          price: booking.price,
+          comment: booking.comment,
+          extras: booking.extras,
+        });
+      } catch (calErr) {
+        console.error("google-calendar admin hook", calErr);
+      }
+      return { ok: true as const, booking };
     } catch (err) {
       if (isUniqueSlotError(err)) return { ok: false as const, error: "slot_taken" as const };
       console.error("adminCreateBooking", err);
@@ -408,22 +389,28 @@ export const adminCreateBooking = createServerFn({ method: "POST" })
   });
 
 export const adminEraseByPhone = createServerFn({ method: "POST" })
-  .validator((input: unknown) => z.object({ pin: z.string(), phone: z.string().trim().min(8) }).parse(input))
+  .validator((input: unknown) => z.object({ pin: z.string(), phone: z.string() }).parse(input))
   .handler(async ({ data }) => {
     if (!pinOk(data.pin)) return { ok: false as const, count: 0 };
     const phone = normalizePhone(data.phone) ?? data.phone.replace(/\s/g, "");
-    const { getSql } = await import("@/lib/db");
-    const sql = await getSql();
-    const rows = await sql<{ id: number }>`
-      update bookings
-      set customer_name = 'deleted',
-          customer_phone = 'deleted',
-          customer_email = null,
-          comment = null,
-          updated_at = now()
-      where customer_phone = ${phone}
-         or customer_phone = ${data.phone}
-      returning id
-    `;
-    return { ok: true as const, count: rows.length };
+    try {
+      const { getSql } = await import("@/lib/db");
+      const sql = await getSql();
+      const rows = await sql<{ id: number }>`
+        update bookings
+        set customer_name = '—',
+            customer_phone = '—',
+            customer_email = null,
+            comment = null,
+            updated_at = now()
+        where customer_phone = ${phone}
+        returning id
+      `;
+      return { ok: true as const, count: rows.length };
+    } catch (err) {
+      console.error("adminEraseByPhone", err);
+      return { ok: false as const, count: 0 };
+    }
   });
+
+void seedIfEmpty;
