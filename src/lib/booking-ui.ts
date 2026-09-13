@@ -2,7 +2,8 @@ import { create } from "zustand";
 import type { ExtraId, VehicleId } from "./catalog";
 import type { BodyType, PriceCategory } from "./vehicles";
 
-export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+/** 1 = account, 2 = vehicle … 8 = confirm */
+export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export type Draft = {
   vehicleType: VehicleId | null;
