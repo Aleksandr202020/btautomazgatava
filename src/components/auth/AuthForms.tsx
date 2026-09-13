@@ -43,6 +43,11 @@ export function LoginForm({ callbackURL = "/kabinets", embedded, onSuccess }: Lo
         setError(err.message || t("loginFailed"));
         return;
       }
+      try {
+        await authClient.getSession();
+      } catch {
+        /* ignore */
+      }
       if (onSuccess) onSuccess();
       else void navigate({ to: callbackURL });
     } catch {
@@ -162,6 +167,11 @@ export function RegisterForm({ callbackURL = "/kabinets" }: RegisterProps) {
       if (err) {
         setError(err.message || t("registerFailed"));
         return;
+      }
+      try {
+        await authClient.getSession();
+      } catch {
+        /* ignore */
       }
       void phone;
       void navigate({ to: callbackURL });
