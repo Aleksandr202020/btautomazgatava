@@ -1,27 +1,28 @@
 @import "tailwindcss";
 
 @theme {
-  /* Light theme — clean automotive */
-  --color-bg: #f7f6f3;
+  /* ENRI-inspired light theme */
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-elevated: #f0efeb;
-  --color-fg: #141414;
-  --color-muted: #5c5a56;
-  --color-subtle: #8a8780;
-  --color-accent: #1a1a1a;
-  --color-accent-fg: #f7f6f3;
-  --color-border: #e2e0da;
-  --color-line: #ebe9e3;
+  --color-elevated: #f5f5f5;
+  --color-fg: #111111;
+  --color-muted: #666666;
+  --color-subtle: #999999;
+  --color-accent: #24a0ed;
+  --color-accent-fg: #ffffff;
+  --color-accent-hover: #1f88c9;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-line: rgba(0, 0, 0, 0.06);
   --color-ok: #2f6b45;
   --color-warn: #9a6b2f;
-  --color-danger: #a33d35;
-  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
-  --radius-xs: 4px;
+  --color-danger: #c0392b;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Inter", system-ui, -apple-system, sans-serif;
+  --radius-xs: 6px;
   --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 28px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
 }
 
 @layer base {
@@ -44,8 +45,9 @@
   h3 {
     font-family: var(--font-display);
     text-wrap: balance;
-    letter-spacing: -0.03em;
-    line-height: 1.12;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    font-weight: 700;
   }
 
   p {
@@ -59,7 +61,7 @@
 
   :focus-visible {
     outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
+    outline-offset: 2px;
   }
 
   .sr-only {
@@ -74,20 +76,8 @@
     border: 0;
   }
 
-  .sr-only:focus,
-  .sr-only:focus-visible,
-  .focus\:not-sr-only:focus {
-    position: static;
-    width: auto;
-    height: auto;
-    margin: 0;
-    overflow: visible;
-    clip: auto;
-    white-space: normal;
-  }
-
   ::selection {
-    background: color-mix(in oklab, var(--color-fg) 24%, transparent);
+    background: color-mix(in oklab, var(--color-accent) 28%, transparent);
   }
 }
 
@@ -104,6 +94,17 @@
 
 .font-display {
   font-family: var(--font-display);
+}
+
+/* ENRI dark hero background */
+.enri-hero {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(36, 160, 237, 0.12), transparent 55%),
+    linear-gradient(160deg, #0a0a0c 0%, #121218 45%, #0d0d10 100%);
+}
+
+.enri-cta-bar {
+  background: #24a0ed;
 }
 
 .reveal {
