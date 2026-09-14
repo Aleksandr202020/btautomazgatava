@@ -131,7 +131,7 @@ function KabinetsPage() {
 
   const defMut = useMutation({
     mutationFn: (id: number) => setDefaultUserVehicle({ data: { id } }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["user-vehicles"] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["user-vehicles"] });
   });
 
   const cancelMut = useMutation({
@@ -298,6 +298,7 @@ function KabinetsPage() {
             <div className="mt-6 space-y-4 rounded-xl border border-border bg-surface p-4">
               <h3 className="text-sm font-medium uppercase tracking-[0.14em] text-muted">{t("addVehicle")}</h3>
               <VehicleSelector
+                hidePrice
                 value={draft}
                 onChange={(s) => {
                   setSel(s);

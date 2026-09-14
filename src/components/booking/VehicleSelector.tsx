@@ -33,6 +33,8 @@ type Props = {
     carPriceCategory: PriceCategory | null;
   };
   onChange: (sel: VehicleSelection) => void;
+  /** Cabinet: hide euro amounts, show category only. */
+  hidePrice?: boolean;
 };
 
 const MANUAL_OPTIONS: { id: PriceCategory; hint: { lv: string; ru: string; en: string } }[] = [
@@ -62,13 +64,11 @@ const MANUAL_OPTIONS: { id: PriceCategory; hint: { lv: string; ru: string; en: s
   },
 ];
 
-export function VehicleSelector({ value, onChange }: Props) {
+export function VehicleSelector({ value, onChange, hidePrice = false }: Props) {
   const { lang } = useLang();
   const [brandQuery, setBrandQuery] = useState("");
   const [modelQuery, setModelQuery] = useState("");
-  /** When true, force showing brand list even if brand already selected (user tapped "change"). */
   const [editingBrand, setEditingBrand] = useState(false);
-  /** When true, force showing model list even if model already selected. */
   const [editingModel, setEditingModel] = useState(false);
 
   const brands = useMemo(() => {
@@ -224,7 +224,6 @@ export function VehicleSelector({ value, onChange }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Brand step */}
       <div>
         <label className="text-xs uppercase tracking-[0.18em] text-muted">{labels.brand[lang]}</label>
 
@@ -272,12 +271,10 @@ export function VehicleSelector({ value, onChange }: Props) {
         )}
       </div>
 
-      {/* Model step — only when brand is locked */}
       {value.carBrand && !showBrandPicker ? (
         <div>
           <label className="text-xs uppercase tracking-[0.18em] text-muted">{labels.model[lang]}</label>
 
-          {/* Locked model row */}
           {!showModelPicker && value.carModel ? (
             <div className="mt-2 flex items-center gap-2">
               <div className="flex min-w-0 flex-1 items-center rounded-lg border border-fg bg-elevated px-3 py-2.5">
@@ -332,7 +329,6 @@ export function VehicleSelector({ value, onChange }: Props) {
         </div>
       ) : null}
 
-      {/* Manual category — only when Other brand/model and model is locked */}
       {needManual && !editingModel && value.carModel ? (
         <div>
           <label className="text-xs uppercase tracking-[0.18em] text-muted">{labels.type[lang]}</label>
@@ -349,7 +345,9 @@ export function VehicleSelector({ value, onChange }: Props) {
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="font-medium">{PRICE_CATEGORY_LABELS[o.id][lang]}</span>
-                  <span className="tabular-nums">{formatEuro(PRICES[o.id], lang)}</span>
+                  {!hidePrice ? (
+                    <span className="tabular-nums">{formatEuro(PRICES[o.id], lang)}</span>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-xs text-muted">{o.hint[lang]}</p>
               </button>
@@ -358,7 +356,6 @@ export function VehicleSelector({ value, onChange }: Props) {
         </div>
       ) : null}
 
-      {/* Summary card — only when selection is complete */}
       {selectionComplete && resolved ? (
         <div className="rounded-xl border border-fg bg-elevated p-4 text-sm">
           <p className="text-xs uppercase tracking-[0.18em] text-muted">{labels.yourCar[lang]}</p>
@@ -366,16 +363,18 @@ export function VehicleSelector({ value, onChange }: Props) {
             {value.carBrand === OTHER_BRAND ? labels.otherBrand[lang] : value.carBrand}{" "}
             {value.carModel === OTHER_MODEL ? "" : value.carModel}
           </p>
-          <dl className="mt-3 grid grid-cols-2 gap-2">
+          <dl className={hidePrice ? "mt-3 grid grid-cols-1 gap-2" : "mt-3 grid grid-cols-2 gap-2"}>
             <div>
               <dt className="text-xs text-muted">{labels.category[lang]}</dt>
               <dd>{resolved.priceLabel[lang]}</dd>
             </div>
-            <div>
-              <dt className="text-xs text-muted">{labels.price[lang]}</dt>
-              <dd className="tabular-nums font-medium">{formatEuro(resolved.price, lang)}</dd>
-            </div>
-            <div className="col-span-2">
+            {!hidePrice ? (
+              <div>
+                <dt className="text-xs text-muted">{labels.price[lang]}</dt>
+                <dd className="tabular-nums font-medium">{formatEuro(resolved.price, lang)}</dd>
+              </div>
+            ) : null}
+            <div className={hidePrice ? "" : "col-span-2"}>
               <dt className="text-xs text-muted">{labels.duration[lang]}</dt>
               <dd>
                 {SERVICE_DURATION_MINUTES} {labels.minutes[lang]}
