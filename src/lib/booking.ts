@@ -81,15 +81,9 @@ const CreateZ = z.object({
 });
 
 export const createBooking = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
   .validator((input: unknown) => CreateZ.parse(input))
-  .handler(async ({ data }) => {
-    try {
-      const { authConfigured, getSessionUser } = await import("@/lib/auth/verify.server");
-      if (authConfigured) {
-        const sessionUser = await getSessionUser();
-        if (!sessionUser) return { ok: false as const, error: "auth" as const };
-      }
-    } catch { return { ok: false as const, error: "generic" as const }; }
+  .handler(async ({ data, context }) => {
     if (data.honeypot && data.honeypot.length > 0) return { ok: false as const, error: "generic" as const };
     const phone = normalizePhone(data.phone);
     if (!phone) return { ok: false as const, error: "phone" as const };
@@ -102,17 +96,28 @@ export const createBooking = createServerFn({ method: "POST" })
     const price = calcPrice(vehicleType, extras);
     const vehicleNote = data.carBrand || data.carModel ? `${data.carBrand} ${data.carModel}`.trim() : "";
     const commentParts = [data.comment?.trim(), vehicleNote ? `Auto: ${vehicleNote}` : ""].filter(Boolean).join(" · ");
-    const email = data.email && /.+@.+\..+/.test(data.email) ? data.email : null;
+
+    let sessionEmail: string | null = null;
+    try {
+      const { getSessionUser } = await import("@/lib/auth/verify.server");
+      const su = await getSessionUser();
+      sessionEmail = su?.email?.trim() || null;
+    } catch {
+      sessionEmail = null;
+    }
+    const formEmail = data.email && /.+@.+\..+/.test(data.email) ? data.email.trim() : null;
+    const email = formEmail || sessionEmail;
+
     try {
       const taken = await occupiedTimes(data.date);
       if (taken.has(data.time)) return { ok: false as const, error: "slot_taken" as const };
       const { getSql } = await import("@/lib/db");
       const sql = await getSql();
-      let sessionUserId: string | null = null;
       try {
-        const { getSessionUser } = await import("@/lib/auth/verify.server");
-        sessionUserId = (await getSessionUser())?.id ?? null;
-      } catch { sessionUserId = null; }
+        await sql.query(`alter table bookings add column if not exists user_id text`);
+      } catch {
+        /* ignore */
+      }
       const inserted = await sql<BookingRow>`
         insert into bookings (
           booking_date, booking_time, customer_name, customer_phone, customer_email,
@@ -120,7 +125,7 @@ export const createBooking = createServerFn({ method: "POST" })
         ) values (
           ${data.date}::date, ${data.time}, ${data.name}, ${phone}, ${email},
           ${vehicleType}, 'komplekss', ${JSON.stringify(extras)}, ${price},
-          ${commentParts || null}, 'confirmed', ${sessionUserId}
+          ${commentParts || null}, 'confirmed', ${context.userId}
         ) returning *`;
       if (!inserted[0]) return { ok: false as const, error: "generic" as const };
       return { ok: true as const, booking: mapRow(inserted[0], true) };
@@ -238,13 +243,32 @@ export const listMyBookings = createServerFn({ method: "GET" })
       const { getSql } = await import("@/lib/db");
       const { getSessionUser } = await import("@/lib/auth/verify.server");
       const sql = await getSql();
+      try {
+        await sql.query(`alter table bookings add column if not exists user_id text`);
+      } catch {
+        /* ignore */
+      }
       const session = await getSessionUser();
       const email = session?.email?.toLowerCase() ?? null;
       const rows = await sql<BookingRow>`
         select * from bookings
         where user_id = ${context.userId}
-           or (user_id is null and ${email} is not null and lower(coalesce(customer_email, '')) = ${email})
-        order by booking_date desc, booking_time desc limit 50`;
+           or (${email} is not null and lower(coalesce(customer_email, '')) = ${email})
+        order by booking_date desc, booking_time desc
+        limit 50
+      `;
+      if (email) {
+        try {
+          await sql`
+            update bookings
+            set user_id = ${context.userId}, updated_at = now()
+            where user_id is null
+              and lower(coalesce(customer_email, '')) = ${email}
+          `;
+        } catch {
+          /* ignore */
+        }
+      }
       return { ok: true as const, bookings: rows.map((r) => mapRow(r, true)) };
     } catch (err) {
       console.error("listMyBookings", err);
