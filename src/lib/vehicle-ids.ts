@@ -10,27 +10,43 @@ export const VEHICLES: {
   {
     id: "car",
     price: 25,
-    label: { lv: "Vieglais auto", ru: "Легковой", en: "Passenger car" },
-    hint: { lv: "Sedans, hatchback, kupeja", ru: "Седан, хэтчбек, купе", en: "Sedan, hatchback, coupe" },
+    label: {
+      lv: "Vieglais auto",
+      ru: "Легковая",
+      en: "Passenger car",
+    },
+    hint: {
+      lv: "Sedans, hatchback, kupeja",
+      ru: "Седан, хэтчбек, купе",
+      en: "Sedan, hatchback, coupe",
+    },
   },
   {
     id: "large_car",
     price: 30,
-    label: { lv: "Liels auto / minivens", ru: "Большой автомобиль / минивэн", en: "Large car / minivan" },
+    label: {
+      lv: "Krosovers / minivens",
+      ru: "Кроссовер / минивэн",
+      en: "Crossover / minivan",
+    },
     hint: {
-      lv: "SUV, krosoveri, ģimenes MPV (piem. Zafira, Touran)",
-      ru: "SUV, кроссоверы, семейные MPV (напр. Zafira, Touran)",
-      en: "SUV, crossovers, family MPV (e.g. Zafira, Touran)",
+      lv: "SUV, krosoveri, ģimenes MPV",
+      ru: "SUV, кроссоверы, семейный минивэн",
+      en: "SUV, crossovers, family MPV",
     },
   },
   {
     id: "commercial",
     price: 35,
-    label: { lv: "Komerctransports / mikroautobuss", ru: "Коммерческий / микроавтобус", en: "Commercial / minibus" },
+    label: {
+      lv: "Mikroautobuss",
+      ru: "Микроавтобус",
+      en: "Minibus",
+    },
     hint: {
-      lv: "Caddy, Berlingo, Vito, Transporter, Sprinter u.c.",
-      ru: "Caddy, Berlingo, Vito, Transporter, Sprinter и др.",
-      en: "Caddy, Berlingo, Vito, Transporter, Sprinter, etc.",
+      lv: "Caddy, Berlingo, Vito, Transporter, Sprinter",
+      ru: "Caddy, Berlingo, Vito, Transporter, Sprinter",
+      en: "Caddy, Berlingo, Vito, Transporter, Sprinter",
     },
   },
 ];
