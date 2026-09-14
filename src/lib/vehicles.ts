@@ -34,13 +34,26 @@ export const PRICES: Record<PriceCategory, number> = {
 
 export const SERVICE_DURATION_MINUTES = 60;
 
+/** Three public categories shown in cabinet / selector (price stays server-side). */
 export const PRICE_CATEGORY_LABELS: Record<
   PriceCategory,
   { lv: string; ru: string; en: string }
 > = {
-  car: { lv: "Vieglais auto", ru: "Легковой автомобиль", en: "Passenger car" },
-  large_car: { lv: "Liels auto / minivens", ru: "Большой автомобиль / минивэн", en: "Large car / minivan" },
-  commercial: { lv: "Komerctransports / mikroautobuss", ru: "Коммерческий / микроавтобус", en: "Commercial / minibus" },
+  car: {
+    lv: "Vieglais auto",
+    ru: "Легковая",
+    en: "Passenger car",
+  },
+  large_car: {
+    lv: "Krosovers / minivens",
+    ru: "Кроссовер / минивэн",
+    en: "Crossover / minivan",
+  },
+  commercial: {
+    lv: "Mikroautobuss",
+    ru: "Микроавтобус",
+    en: "Minibus",
+  },
 };
 
 const OTHER_BRAND = "Other";
