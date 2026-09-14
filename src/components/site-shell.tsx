@@ -49,7 +49,12 @@ export function SiteHeader() {
   }, [open]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur-xl">
+    <header
+      className={cn(
+        "sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur-xl",
+        open && "bg-white backdrop-blur-none",
+      )}
+    >
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-5 sm:px-8">
         <Logo />
         <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Primary">
@@ -100,30 +105,45 @@ export function SiteHeader() {
           </button>
         </div>
       </div>
+
+      {/* Mobile menu: solid white sheet so text stays readable over dark hero */}
       {open ? (
-        <div className="fixed inset-0 top-[72px] z-40 bg-white lg:hidden">
-          <nav className="flex flex-col gap-1 px-6 py-8" aria-label="Mobile">
+        <div
+          className="fixed inset-0 top-[72px] z-50 bg-white lg:hidden"
+          style={{ backgroundColor: "#ffffff" }}
+        >
+          <nav className="flex h-full flex-col gap-1 overflow-y-auto px-6 py-8" aria-label="Mobile">
             <div className="mb-6 flex gap-3 text-sm text-muted">
               {LANGS.map((l) => (
                 <button
                   key={l.id}
                   type="button"
                   onClick={() => setLang(l.id)}
-                  className={cn("uppercase", lang === l.id && "font-semibold text-fg")}
+                  className={cn(
+                    "uppercase transition-colors",
+                    lang === l.id ? "font-semibold text-fg" : "hover:text-fg",
+                  )}
                 >
                   {l.label}
                 </button>
               ))}
             </div>
             {NAV.map((item) => (
-              <Link key={item.to + item.key} to={item.to} className="py-3 text-xl font-semibold text-fg">
+              <Link
+                key={item.to + item.key}
+                to={item.to}
+                className="py-3 text-xl font-semibold text-fg transition-colors hover:text-accent"
+              >
                 {t(item.key)}
               </Link>
             ))}
-            <Link to="/kabinets" className="mt-4 py-3 text-xl font-semibold text-fg">
+            <Link
+              to="/kabinets"
+              className="mt-4 py-3 text-xl font-semibold text-fg transition-colors hover:text-accent"
+            >
               {t("navProfile")}
             </Link>
-            <Link to="/pieraksts" className="mt-6">
+            <Link to="/pieraksts" className="mt-6 block">
               <Button className="w-full" size="lg">
                 {t("bookCta")}
               </Button>
