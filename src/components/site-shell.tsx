@@ -12,10 +12,10 @@ function Logo({ onClick, light }: { onClick?: () => void; light?: boolean }) {
     <Link
       to="/"
       onClick={onClick}
-      className={cn("flex items-center gap-2 no-underline", light ? "text-white" : "text-fg")}
+      className={cn("flex items-baseline gap-2 no-underline", light ? "text-white" : "text-fg")}
     >
-      <span className="text-lg font-bold tracking-tight">BT</span>
-      <span className={cn("text-[11px] font-medium uppercase tracking-[0.16em]", light ? "text-white/70" : "text-muted")}>
+      <span className="font-display text-2xl leading-none tracking-tight">BT</span>
+      <span className={cn("text-[11px] font-medium uppercase tracking-[0.22em]", light ? "text-white/70" : "text-muted")}>
         Automazgātava
       </span>
     </Link>
