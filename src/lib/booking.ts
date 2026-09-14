@@ -6,7 +6,12 @@ import { generateSlots, isSlotInPast, isWorkingDate } from "./slots";
 import { normalizePhone, rigaDate } from "./utils";
 import { getVehiclePrice, type PriceCategory } from "./vehicles";
 
-const ADMIN_PIN = "090021";
+function readAdminPin(): string {
+  if (typeof process === "undefined") return "";
+  const raw = process.env["BTA_ADMIN_PIN"];
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
 const ExtraZ = z.enum(["fragrance", "tyres", "leather", "antirain", "discs", "engine"]);
 const VehicleZ = z.enum(["car", "large_car", "commercial", "suv"]);
 const PriceCategoryZ = z.enum(["car", "large_car", "commercial"]);
@@ -40,7 +45,10 @@ function mapRow(row: BookingRow, admin = false): BookingPublic {
   return base;
 }
 
-function pinOk(pin: string): boolean { return pin === ADMIN_PIN; }
+function pinOk(pin: string): boolean {
+  const adminPin = readAdminPin();
+  return adminPin.length > 0 && pin === adminPin;
+}
 function isUniqueSlotError(err: unknown): boolean {
   return /unique|duplicate|bookings_date_time/i.test(String((err as { message?: string })?.message ?? err ?? ""));
 }
