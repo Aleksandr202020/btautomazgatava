@@ -14,7 +14,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useLang } from "@/lib/lang";
 import { listUserVehicles, type UserVehicle } from "@/lib/user-vehicles";
 import { PRICE_CATEGORY_LABELS, SERVICE_DURATION_MINUTES } from "@/lib/vehicles";
-import { generateSlots, isSlotInPast, upcomingDates } from "@/lib/slots";
+import { upcomingDates } from "@/lib/slots";
 import { cn, formatEuro, track } from "@/lib/utils";
 import type { Draft } from "@/lib/booking-ui";
 
@@ -32,16 +32,6 @@ function weekdayLabel(iso: string, lang: string) {
     month: "short",
     timeZone: "UTC",
   }).format(dt);
-}
-
-function localSlots(date: string): SlotsResult {
-  return {
-    date,
-    slots: generateSlots().map((time) => ({
-      time,
-      free: !isSlotInPast(date, time),
-    })),
-  };
 }
 
 function icsContent(b: BookingPublic) {
@@ -115,19 +105,14 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
   const slotsQ = useQuery<SlotsResult>({
     queryKey: ["slots", draft.date],
     enabled: Boolean(draft.date),
-    retry: 2,
+    retry: 1,
     staleTime: 0,
     queryFn: async () => {
       const date = draft.date;
       if (!date) return { date: "", slots: [] };
-      try {
-        const result = await getAvailableSlots({ data: { date } });
-        if (result?.slots?.length) return result as SlotsResult;
-        return localSlots(date);
-      } catch (err) {
-        console.error("booking availability RPC failed", err);
-        return localSlots(date);
-      }
+      // No localSlots fallback: a DB failure must surface as an error, never as "all free".
+      const result = await getAvailableSlots({ data: { date } });
+      return result as SlotsResult;
     },
   });
 
@@ -166,11 +151,13 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
         setError(
           res.error === "slot_taken"
             ? t("slotTaken")
-            : res.error === "phone"
-              ? t("phoneInvalid")
-              : res.error === "auth"
-                ? t("bookingRequireAuth")
-                : t("errorGeneric"),
+            : res.error === "db_unavailable"
+              ? t("dbUnavailableBooking")
+              : res.error === "phone"
+                ? t("phoneInvalid")
+                : res.error === "auth"
+                  ? t("bookingRequireAuth")
+                  : t("errorGeneric"),
         );
         if (res.error === "slot_taken") {
           await slotsQ.refetch();
@@ -430,9 +417,16 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
                   <span key={i} className="h-12 animate-pulse rounded-md border border-border bg-surface" />
                 ))}
               </div>
+            ) : slotsQ.isError ? (
+              <div className="mt-6 rounded-lg border border-danger/40 bg-danger/5 p-4">
+                <p className="text-sm text-danger">{t("dbUnavailable")}</p>
+                <Button type="button" variant="outline" className="mt-3" onClick={() => slotsQ.refetch()}>
+                  {t("retry")}
+                </Button>
+              </div>
             ) : (
               <div className="mt-5 grid grid-cols-3 gap-2">
-                {(slotsQ.data?.slots ?? localSlots(draft.date).slots).map((s) => (
+                {(slotsQ.data?.slots ?? []).map((s) => (
                   <button
                     key={s.time}
                     type="button"
@@ -452,7 +446,7 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
                 ))}
               </div>
             )}
-            {!slotsQ.isLoading && slotsQ.data?.slots.every((s) => !s.free) ? (
+            {!slotsQ.isLoading && !slotsQ.isError && slotsQ.data?.slots.every((s) => !s.free) ? (
               <p className="mt-4 text-sm text-warn">{t("noSlots")}</p>
             ) : null}
           </div>
@@ -487,18 +481,12 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
               {t("comment")}
               <textarea value={draft.comment} onChange={(e) => patch({ comment: e.target.value })} rows={3} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-fg" />
             </label>
-            <label className="flex items-start gap-3 text-sm">
-              <input type="checkbox" checked={draft.privacy} onChange={(e) => patch({ privacy: e.target.checked })} className="mt-1 size-4" required />
-              <span>
-                {t("privacyAgree")}{" "}
-                <Link to="/privatuma-politika" className="underline" onClick={onClose}>
-                  {t("privacy")}
-                </Link>
-              </span>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" checked={draft.privacy} onChange={(e) => patch({ privacy: e.target.checked })} className="mt-1" />
+              <span>{t("privacyAgree")}</span>
             </label>
-            <div className="absolute left-[-9999px]" aria-hidden>
-              <input tabIndex={-1} autoComplete="off" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} />
-            </div>
+            <input type="text" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} className="hidden" tabIndex={-1} autoComplete="off" aria-hidden />
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
             <Button type="submit" className="w-full" size="lg">
               {t("next")}
             </Button>
@@ -506,140 +494,63 @@ export function BookingWizard({ onClose, embedded }: { onClose?: () => void; emb
         )}
 
         {step === 8 && !done && (
-          <div>
-            <h2 className="font-display text-3xl">{t("yourOrder")}</h2>
-            <dl className="mt-5 space-y-3 rounded-xl border border-border bg-surface p-5 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted">{t("stepVehicle")}</dt>
-                <dd className="text-right">
-                  {draft.carBrand && draft.carModel && draft.carModel !== "Other"
-                    ? `${draft.carBrand} ${draft.carModel}`
-                    : vehicle?.label[lang] ?? draft.carPriceLabel}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted">{t("stepService")}</dt>
-                <dd>{SERVICE.label[lang]}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted">{t("stepDate")}</dt>
-                <dd>
-                  {draft.date} · {draft.time}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted">{t("stepExtras")}</dt>
-                <dd className="text-right">
-                  {draft.extras.length ? draft.extras.map((id) => EXTRAS.find((e) => e.id === id)?.label[lang]).join(", ") : "—"}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4 border-t border-line pt-3 text-base">
-                <dt>{t("total")}</dt>
-                <dd className="tabular-nums">{formatEuro(price, lang)}</dd>
-              </div>
-            </dl>
-            <p className="mt-3 text-xs text-muted">{t("payNote")}</p>
-            <Button className="mt-6 w-full" size="xl" disabled={busy} onClick={submit}>
-              {t("confirmCta")}
+          <div className="space-y-4">
+            <h2 className="font-display text-3xl">{t("stepConfirm")}</h2>
+            <div className="rounded-xl border border-border bg-surface p-4 text-sm">
+              <p>
+                <span className="text-muted">{t("bookingDate")}: </span>
+                {draft.date} · {draft.time}
+              </p>
+              <p className="mt-1">
+                <span className="text-muted">{t("bookingVehicle")}: </span>
+                {draft.carBrand} {draft.carModel}
+              </p>
+              <p className="mt-1">
+                <span className="text-muted">{t("total")}: </span>
+                {formatEuro(price, lang)}
+              </p>
+            </div>
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            <Button className="w-full" size="lg" disabled={busy} onClick={submit}>
+              {busy ? t("loading") : t("confirmCta")}
             </Button>
+            <button type="button" className="flex items-center gap-1 text-sm text-muted" onClick={() => go(7)}>
+              <ChevronLeft className="size-4" /> {t("back")}
+            </button>
           </div>
         )}
 
-        {done && (
-          <div className="text-center">
-            <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-ok text-ok">
-              <Check />
-            </div>
-            <h2 className="mt-5 font-display text-3xl">{t("successTitle")}</h2>
-            <p className="mt-2 text-sm text-muted">{t("successLead")}</p>
-            <p className="mt-6 text-lg tabular-nums">
-              {done.date} · {done.time}
+        {step === 8 && done ? (
+          <div className="space-y-5 text-center">
+            <h2 className="font-display text-3xl">{t("successTitle")}</h2>
+            <p className="text-sm text-muted">{t("successLead")}</p>
+            <p className="text-lg tabular-nums">
+              {done.date} · {done.time} · {formatEuro(done.price, lang)}
             </p>
-            <p className="mt-1 text-muted">
-              {vehicle?.label[lang]} · {formatEuro(done.price, lang)}
-            </p>
-            <div className="mt-8 flex flex-col gap-2">
-              <a className="inline-flex h-11 items-center justify-center rounded-md border border-border text-sm" href={googleCalUrl(done)} target="_blank" rel="noreferrer">
-                {t("googleCal")}
-              </a>
-              <button
-                type="button"
-                className="inline-flex h-11 items-center justify-center rounded-md border border-border text-sm"
-                onClick={() => {
-                  const blob = new Blob([icsContent(done)], { type: "text/calendar" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "btautomazgatava.ics";
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
+            <div className="flex flex-col gap-2">
+              <a
+                className="inline-flex h-12 items-center justify-center rounded-md border border-border text-sm"
+                href={googleCalUrl(done)}
+                target="_blank"
+                rel="noreferrer"
               >
                 {t("addCalendar")}
-              </button>
-              <Button className="mt-2" onClick={finish}>
-                {t("close")}
+              </a>
+              <Button variant="secondary" onClick={finish}>
+                {t("newBooking")}
               </Button>
             </div>
           </div>
-        )}
-
-        {error ? <p className="mt-4 text-sm text-danger">{error}</p> : null}
+        ) : null}
       </div>
 
-      {step > 1 && step < 8 ? (
+      {step < 8 && step > 1 ? (
         <div className="border-t border-line px-4 py-3">
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-muted">{t("total")}</span>
-            <span className="tabular-nums">{formatEuro(price, lang)}</span>
-          </div>
-          <button type="button" className="inline-flex items-center gap-1 text-sm text-muted" onClick={() => go((step - 1) as WizardStep)}>
-            <ChevronLeft className="size-4" />
-            {t("back")}
+          <button type="button" className="flex items-center gap-1 text-sm text-muted" onClick={() => go((step - 1) as WizardStep)}>
+            <ChevronLeft className="size-4" /> {t("back")}
           </button>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-export function BookingOverlay() {
-  const open = useBookingUi((s) => s.open);
-  const closeWizard = useBookingUi((s) => s.closeWizard);
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 bg-bg/80 backdrop-blur-sm">
-      <div className="mx-auto flex h-full max-w-lg flex-col bg-bg shadow-2xl md:h-[min(92dvh,840px)] md:mt-[4dvh] md:rounded-xl md:border md:border-border">
-        <BookingWizard onClose={closeWizard} />
-      </div>
-    </div>
-  );
-}
-
-export function CookieBanner() {
-  const { t } = useLang();
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    setVisible(!window.localStorage.getItem("bta-cookie"));
-  }, []);
-  if (!visible) return null;
-  function choose(v: "all" | "essential") {
-    window.localStorage.setItem("bta-cookie", v);
-    setVisible(false);
-  }
-  return (
-    <div className="fixed inset-x-0 bottom-20 z-30 mx-auto max-w-xl px-3 md:bottom-6">
-      <div className="rounded-xl border border-border bg-elevated p-4 shadow-lg">
-        <p className="text-sm text-muted">{t("cookieBody")}</p>
-        <div className="mt-3 flex gap-2">
-          <Button size="md" onClick={() => choose("all")}>
-            {t("cookieAll")}
-          </Button>
-          <Button variant="secondary" size="md" onClick={() => choose("essential")}>
-            {t("cookieEssential")}
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
