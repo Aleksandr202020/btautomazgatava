@@ -136,7 +136,6 @@ export const createBooking = createServerFn({ method: "POST" })
     const vehicleNote = data.carBrand || data.carModel ? `${data.carBrand} ${data.carModel}`.trim() : "";
     const commentParts = [data.comment?.trim(), vehicleNote ? `Auto: ${vehicleNote}` : ""].filter(Boolean).join(" · ");
 
-    // Always prefer account email from user table; form email is fallback contact only.
     let accountEmail: string | null = null;
     try {
       const { getSql } = await import("@/lib/db");
@@ -159,7 +158,6 @@ export const createBooking = createServerFn({ method: "POST" })
       if (taken.has(data.time)) return { ok: false as const, error: "slot_taken" as const };
       const { getSql } = await import("@/lib/db");
       const sql = await getSql();
-      // user_id is mandatory link to the account (Better Auth user id).
       const inserted = await sql<BookingRow>`
         insert into bookings (
           booking_date, booking_time, customer_name, customer_phone, customer_email,
@@ -265,7 +263,6 @@ export const adminCreateBooking = createServerFn({ method: "POST" })
       if (taken.has(data.time)) return { ok: false as const, error: "slot_taken" as const };
       const { getSql } = await import("@/lib/db");
       const sql = await getSql();
-      // Admin walk-in: no user_id (not linked to a client account).
       const inserted = await sql<BookingRow>`
         insert into bookings (
           booking_date, booking_time, customer_name, customer_phone,
@@ -287,7 +284,7 @@ export const adminCreateBooking = createServerFn({ method: "POST" })
     }
   });
 
-/** Client cabinet: list only by user_id. Email used once to claim orphan rows. */
+/** Client cabinet: by user_id OR matching customer_email. */
 export const listMyBookings = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
@@ -297,7 +294,6 @@ export const listMyBookings = createServerFn({ method: "GET" })
       const sql = await getSql();
       const userId = context.userId;
 
-      // One-time: attach orphan bookings (no user_id) that match account email.
       let email: string | null = null;
       try {
         const urows = await sql<{ email: string }>`select email from "user" where id = ${userId} limit 1`;
@@ -309,21 +305,29 @@ export const listMyBookings = createServerFn({ method: "GET" })
           email = session?.email?.trim().toLowerCase() || null;
         } catch { email = null; }
       }
+
+      let rows: BookingRow[] = [];
       if (email) {
+        rows = await sql<BookingRow>`
+          select * from bookings
+          where user_id = ${userId}
+             or lower(coalesce(customer_email, '')) = ${email}
+          order by booking_date desc, booking_time desc
+          limit 50`;
         try {
           await sql`
             update bookings
             set user_id = ${userId}, updated_at = now()
-            where (user_id is null or user_id = '')
+            where (user_id is null or user_id = '' or user_id <> ${userId})
               and lower(coalesce(customer_email, '')) = ${email}`;
         } catch { /* ignore claim errors */ }
+      } else {
+        rows = await sql<BookingRow>`
+          select * from bookings
+          where user_id = ${userId}
+          order by booking_date desc, booking_time desc
+          limit 50`;
       }
-
-      const rows = await sql<BookingRow>`
-        select * from bookings
-        where user_id = ${userId}
-        order by booking_date desc, booking_time desc
-        limit 50`;
 
       return { ok: true as const, bookings: rows.map((r) => mapRow(r, true)) };
     } catch (err) {
@@ -332,19 +336,34 @@ export const listMyBookings = createServerFn({ method: "GET" })
     }
   });
 
-/** Cancel only own booking (user_id). */
+/** Cancel by user_id OR matching customer_email. */
 export const cancelMyBooking = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: unknown) => z.object({ id: z.number().int() }).parse(input))
   .handler(async ({ context, data }) => {
     try {
       const { getSql } = await import("@/lib/db");
+      const { getSessionUser } = await import("@/lib/auth/verify.server");
       const sql = await getSql();
+      let email: string | null = null;
+      try {
+        const urows = await sql<{ email: string }>`select email from "user" where id = ${context.userId} limit 1`;
+        if (urows[0]?.email) email = String(urows[0].email).trim().toLowerCase();
+      } catch { /* ignore */ }
+      if (!email) {
+        try {
+          const session = await getSessionUser();
+          email = session?.email?.trim().toLowerCase() || null;
+        } catch { email = null; }
+      }
       const rows = await sql<BookingRow>`
-        update bookings set status = 'cancelled', updated_at = now()
-        where id = ${data.id}
-          and user_id = ${context.userId}
-          and status not in ('cancelled', 'completed', 'no-show')
+        update bookings set status = 'cancelled', updated_at = now(),
+          user_id = coalesce(nullif(user_id, ''), ${context.userId})
+        where id = ${data.id} and status not in ('cancelled', 'completed', 'no-show')
+          and (
+            user_id = ${context.userId}
+            or (${email} is not null and lower(coalesce(customer_email, '')) = ${email})
+          )
         returning *`;
       if (!rows[0]) return { ok: false as const, error: "not_found" as const };
       return { ok: true as const, booking: mapRow(rows[0], true) };
@@ -354,7 +373,7 @@ export const cancelMyBooking = createServerFn({ method: "POST" })
     }
   });
 
-/** Edit only own booking (user_id). */
+/** Edit by user_id OR matching customer_email. */
 export const updateMyBooking = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: unknown) => z.object({
@@ -367,12 +386,27 @@ export const updateMyBooking = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     try {
       const { getSql } = await import("@/lib/db");
+      const { getSessionUser } = await import("@/lib/auth/verify.server");
       const sql = await getSql();
+      let email: string | null = null;
+      try {
+        const urows = await sql<{ email: string }>`select email from "user" where id = ${context.userId} limit 1`;
+        if (urows[0]?.email) email = String(urows[0].email).trim().toLowerCase();
+      } catch { /* ignore */ }
+      if (!email) {
+        try {
+          const session = await getSessionUser();
+          email = session?.email?.trim().toLowerCase() || null;
+        } catch { email = null; }
+      }
 
       const existing = await sql<BookingRow>`
         select * from bookings where id = ${data.id}
-          and user_id = ${context.userId}
           and status not in ('cancelled', 'completed', 'no-show')
+          and (
+            user_id = ${context.userId}
+            or (${email} is not null and lower(coalesce(customer_email, '')) = ${email})
+          )
         limit 1`;
       const row = existing[0];
       if (!row) return { ok: false as const, error: "not_found" as const };
@@ -421,7 +455,7 @@ export const updateMyBooking = createServerFn({ method: "POST" })
         update bookings set booking_date = ${nextDate}::date, booking_time = ${nextTime},
           vehicle_type = ${vehicleType}, price = ${price}, comment = ${comment},
           user_id = ${context.userId}, updated_at = now()
-        where id = ${data.id} and user_id = ${context.userId}
+        where id = ${data.id}
         returning *`;
       if (!updated[0]) return { ok: false as const, error: "generic" as const };
       return { ok: true as const, booking: mapRow(updated[0], true) };
