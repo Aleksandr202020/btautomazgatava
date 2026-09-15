@@ -30,7 +30,7 @@ type BookingRow = {
   status: string; user_id: string | null; created_at: string; updated_at: string;
 };
 
-/** Postgres TIME often comes as "14:00:00" — slots use "14:00". */
+/** Postgres TIME / text often comes as "14:00:00" — slots use "14:00". */
 function normalizeTimeHm(raw: unknown): string {
   const s = String(raw ?? "").trim();
   const m = s.match(/^(\d{1,2}):(\d{2})/);
@@ -60,7 +60,7 @@ function pinOk(pin: string): boolean {
 function isUniqueSlotError(err: unknown): boolean {
   const msg = String((err as { message?: string; code?: string })?.message ?? err ?? "");
   const code = String((err as { code?: string })?.code ?? "");
-  return code === "23505" || /unique|duplicate|bookings_date_time|booking_date.*booking_time/i.test(msg);
+  return code === "23505" || /unique|duplicate|bookings_date_time|bookings_slot_unique|booking_date.*booking_time/i.test(msg);
 }
 
 /** Fail-closed: DB down / unreachable / misconfigured — never treat as "no rows". */
@@ -346,9 +346,13 @@ export const cancelMyBooking = createServerFn({ method: "POST" })
       const session = await getSessionUser();
       const email = session?.email?.toLowerCase() ?? null;
       const rows = await sql<BookingRow>`
-        update bookings set status = 'cancelled', updated_at = now()
+        update bookings set status = 'cancelled', updated_at = now(),
+          user_id = coalesce(nullif(user_id, ''), ${context.userId})
         where id = ${data.id} and status not in ('cancelled', 'completed', 'no-show')
-          and (user_id = ${context.userId} or (user_id is null and ${email} is not null and lower(coalesce(customer_email, '')) = ${email}))
+          and (
+            user_id = ${context.userId}
+            or (${email} is not null and lower(coalesce(customer_email, '')) = ${email})
+          )
         returning *`;
       if (!rows[0]) return { ok: false as const, error: "not_found" as const };
       return { ok: true as const, booking: mapRow(rows[0], true) };
@@ -374,13 +378,19 @@ export const updateMyBooking = createServerFn({ method: "POST" })
       const sql = await getSql();
       const session = await getSessionUser();
       const email = session?.email?.toLowerCase() ?? null;
+
+      // Ownership same as listMyBookings: user_id OR matching customer_email
       const existing = await sql<BookingRow>`
         select * from bookings where id = ${data.id}
           and status not in ('cancelled', 'completed', 'no-show')
-          and (user_id = ${context.userId} or (user_id is null and ${email} is not null and lower(coalesce(customer_email, '')) = ${email}))
+          and (
+            user_id = ${context.userId}
+            or (${email} is not null and lower(coalesce(customer_email, '')) = ${email})
+          )
         limit 1`;
       const row = existing[0];
       if (!row) return { ok: false as const, error: "not_found" as const };
+
       const nextDate = data.date ?? String(row.booking_date).slice(0, 10);
       const nextTime = normalizeTimeHm(data.time ?? row.booking_time);
       const prevTime = normalizeTimeHm(row.booking_time);
@@ -393,16 +403,18 @@ export const updateMyBooking = createServerFn({ method: "POST" })
       if (isSlotInPast(nextDate, nextTime)) {
         return { ok: false as const, error: "past_slot" as const };
       }
+
+      // booking_time is TEXT — compare normalized HH:MM in JS
       if (nextDate !== String(row.booking_date).slice(0, 10) || nextTime !== prevTime) {
-        const clash = await sql<{ id: number }>`
-          select id from bookings
+        const clashRows = await sql<{ id: number; booking_time: string }>`
+          select id, booking_time from bookings
           where booking_date = ${nextDate}::date
-            and to_char(booking_time::time, 'HH24:MI') = ${nextTime}
             and status not in ('cancelled', 'no-show')
-            and id <> ${data.id}
-          limit 1`;
-        if (clash[0]) return { ok: false as const, error: "slot_taken" as const };
+            and id <> ${data.id}`;
+        const clash = clashRows.find((r) => normalizeTimeHm(r.booking_time) === nextTime);
+        if (clash) return { ok: false as const, error: "slot_taken" as const };
       }
+
       let vehicleType = normalizeVehicleId(row.vehicle_type);
       let price = Number(row.price);
       let comment = row.comment;
@@ -419,7 +431,8 @@ export const updateMyBooking = createServerFn({ method: "POST" })
           comment = [withoutAuto, `Auto: ${vehicleNote}`].filter(Boolean).join(" · ");
         }
       }
-      const claimUserId = row.user_id ?? context.userId;
+
+      const claimUserId = context.userId;
       const updated = await sql<BookingRow>`
         update bookings set booking_date = ${nextDate}::date, booking_time = ${nextTime},
           vehicle_type = ${vehicleType}, price = ${price}, comment = ${comment},
