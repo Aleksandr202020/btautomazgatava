@@ -47,32 +47,48 @@ function mapRow(row: Row): UserVehicle {
   };
 }
 
-/** Ensure table exists (self-heal if migration lagged behind deploy). */
+function isDbDown(err: unknown): boolean {
+  const msg = String((err as { message?: string })?.message ?? err ?? "").toLowerCase();
+  return /connection|econnrefused|etimedout|enotfound|timeout|ssl|password authentication|too many clients|could not connect|neon|database_url|getaddrinfo|socket hang up|network/i.test(
+    msg,
+  );
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  const msg = String((err as { message?: string })?.message ?? err ?? "");
+  return /unique|duplicate|user_vehicles_one_default/i.test(msg);
+}
+
+/** Ensure table exists. Failures are non-fatal if table already present. */
 async function ensureUserVehiclesTable(
   sql: Awaited<ReturnType<typeof import("@/lib/db").getSql>>,
 ) {
-  await sql.query(`
-    create table if not exists user_vehicles (
-      id serial primary key,
-      user_id text not null,
-      brand text not null,
-      model text not null,
-      body_type text,
-      price_category text not null check (price_category in ('car', 'large_car', 'commercial')),
-      label text,
-      is_default boolean not null default false,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    )
-  `);
-  await sql.query(
-    `create index if not exists user_vehicles_user_id_idx on user_vehicles (user_id)`,
-  );
-  await sql.query(`
-    create unique index if not exists user_vehicles_one_default
-      on user_vehicles (user_id)
-      where is_default = true
-  `);
+  try {
+    await sql.query(`
+      create table if not exists user_vehicles (
+        id serial primary key,
+        user_id text not null,
+        brand text not null,
+        model text not null,
+        body_type text,
+        price_category text not null check (price_category in ('car', 'large_car', 'commercial')),
+        label text,
+        is_default boolean not null default false,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await sql.query(
+      `create index if not exists user_vehicles_user_id_idx on user_vehicles (user_id)`,
+    );
+    await sql.query(`
+      create unique index if not exists user_vehicles_one_default
+        on user_vehicles (user_id)
+        where is_default = true
+    `);
+  } catch (err) {
+    console.warn("[user_vehicles] ensure table:", err);
+  }
 }
 
 export const listUserVehicles = createServerFn({ method: "GET" })
@@ -90,7 +106,10 @@ export const listUserVehicles = createServerFn({ method: "GET" })
       return { ok: true as const, vehicles: rows.map(mapRow) };
     } catch (err) {
       console.error("listUserVehicles", err);
-      return { ok: false as const, vehicles: [] as UserVehicle[] };
+      if (isDbDown(err)) {
+        return { ok: false as const, vehicles: [] as UserVehicle[], error: "db_unavailable" as const };
+      }
+      return { ok: false as const, vehicles: [] as UserVehicle[], error: "generic" as const };
     }
   });
 
@@ -98,7 +117,6 @@ const AddZ = z.object({
   brand: z.string().trim().min(1).max(60),
   model: z.string().trim().min(1).max(60),
   bodyType: z.string().max(40).optional().nullable(),
-  // Optional — server resolves from catalog when brand/model are known
   priceCategory: PriceCategoryZ.optional().nullable(),
   label: z.string().trim().max(80).optional().nullable(),
   isDefault: z.boolean().optional().default(false),
@@ -125,34 +143,66 @@ export const addUserVehicle = createServerFn({ method: "POST" })
         return { ok: false as const, error: "limit" as const };
       }
 
-      if (data.isDefault) {
+      const makeDefault = Boolean(data.isDefault) || (count[0]?.n ?? 0) === 0;
+      if (makeDefault) {
         await sql`
           update user_vehicles set is_default = false, updated_at = now()
           where user_id = ${context.userId} and is_default = true
         `;
       }
 
-      const makeDefault = data.isDefault || (count[0]?.n ?? 0) === 0;
+      let inserted: Row[];
+      try {
+        inserted = await sql<Row>`
+          insert into user_vehicles (
+            user_id, brand, model, body_type, price_category, label, is_default
+          ) values (
+            ${context.userId},
+            ${resolved.brand},
+            ${resolved.model},
+            ${resolved.bodyType},
+            ${resolved.priceCategory},
+            ${data.label?.trim() || null},
+            ${makeDefault}
+          )
+          returning *
+        `;
+      } catch (err) {
+        if (isUniqueViolation(err) && makeDefault) {
+          await sql`
+            update user_vehicles set is_default = false, updated_at = now()
+            where user_id = ${context.userId}
+          `;
+          inserted = await sql<Row>`
+            insert into user_vehicles (
+              user_id, brand, model, body_type, price_category, label, is_default
+            ) values (
+              ${context.userId},
+              ${resolved.brand},
+              ${resolved.model},
+              ${resolved.bodyType},
+              ${resolved.priceCategory},
+              ${data.label?.trim() || null},
+              true
+            )
+            returning *
+          `;
+        } else {
+          throw err;
+        }
+      }
 
-      const inserted = await sql<Row>`
-        insert into user_vehicles (
-          user_id, brand, model, body_type, price_category, label, is_default
-        ) values (
-          ${context.userId},
-          ${resolved.brand},
-          ${resolved.model},
-          ${resolved.bodyType},
-          ${resolved.priceCategory},
-          ${data.label?.trim() || null},
-          ${makeDefault}
-        )
-        returning *
-      `;
       const row = inserted[0];
       if (!row) return { ok: false as const, error: "generic" as const };
       return { ok: true as const, vehicle: mapRow(row) };
     } catch (err) {
       console.error("addUserVehicle", err);
+      if (isDbDown(err)) {
+        return { ok: false as const, error: "db_unavailable" as const };
+      }
+      if (isUniqueViolation(err)) {
+        return { ok: false as const, error: "conflict" as const };
+      }
       return { ok: false as const, error: "generic" as const };
     }
   });
