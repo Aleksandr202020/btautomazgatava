@@ -33,7 +33,7 @@ type Props = {
     carPriceCategory: PriceCategory | null;
   };
   onChange: (sel: VehicleSelection) => void;
-  /** Cabinet: hide euro amounts, show category only. /* cabinet-hide-price-v2 */ */
+  /** Cabinet: hide euro amounts, show category only. (cabinet-hide-price-v2) */
   hidePrice?: boolean;
 };
 
