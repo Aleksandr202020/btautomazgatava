@@ -101,7 +101,7 @@ export function LoginForm({ callbackURL = "/kabinets", embedded, onSuccess }: Lo
       </form>
 
       <div className="mt-4 flex items-center justify-between text-sm">
-        <Link to="/kontakti" className="text-muted hover:text-fg">
+        <Link to="/forgot-password" className="text-muted hover:text-fg">
           {t("forgotPassword")}
         </Link>
         <Link to="/register" className="font-medium text-accent hover:underline">
