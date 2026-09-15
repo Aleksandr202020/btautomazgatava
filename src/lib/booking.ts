@@ -30,11 +30,19 @@ type BookingRow = {
   status: string; user_id: string | null; created_at: string; updated_at: string;
 };
 
+/** Postgres TIME often comes as "14:00:00" — slots use "14:00". */
+function normalizeTimeHm(raw: unknown): string {
+  const s = String(raw ?? "").trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return s.slice(0, 5);
+  return `${String(Number(m[1])).padStart(2, "0")}:${m[2]}`;
+}
+
 function mapRow(row: BookingRow, admin = false): BookingPublic {
   let extras: ExtraId[] = [];
   try { extras = JSON.parse(row.extras) as ExtraId[]; } catch { extras = []; }
   const base: BookingPublic = {
-    id: Number(row.id), date: String(row.booking_date).slice(0, 10), time: row.booking_time,
+    id: Number(row.id), date: String(row.booking_date).slice(0, 10), time: normalizeTimeHm(row.booking_time),
     vehicleType: normalizeVehicleId(row.vehicle_type), serviceId: row.service_id, extras,
     price: Number(row.price), status: row.status,
   };
@@ -50,7 +58,9 @@ function pinOk(pin: string): boolean {
   return adminPin.length > 0 && pin === adminPin;
 }
 function isUniqueSlotError(err: unknown): boolean {
-  return /unique|duplicate|bookings_date_time/i.test(String((err as { message?: string })?.message ?? err ?? ""));
+  const msg = String((err as { message?: string; code?: string })?.message ?? err ?? "");
+  const code = String((err as { code?: string })?.code ?? "");
+  return code === "23505" || /unique|duplicate|bookings_date_time|booking_date.*booking_time/i.test(msg);
 }
 
 /** Fail-closed: DB down / unreachable / misconfigured — never treat as "no rows". */
@@ -77,7 +87,7 @@ async function occupiedTimes(date: string): Promise<Set<string>> {
     const rows = await sql<{ booking_time: string }>`
       select booking_time from bookings
       where booking_date = ${date}::date and status not in ('cancelled', 'no-show')`;
-    return new Set(rows.map((r) => r.booking_time));
+    return new Set(rows.map((r) => normalizeTimeHm(r.booking_time)));
   } catch (err) {
     console.error("[DB] occupiedTimes failed — database unavailable");
     throw new DatabaseUnavailableError();
@@ -203,14 +213,14 @@ export const adminDashboard = createServerFn({ method: "POST" })
         select * from bookings where booking_date = ${today}::date order by booking_time asc`;
       const active = rows.filter((r) => r.status !== "cancelled" && r.status !== "no-show");
       const revenue = active.reduce((s, r) => s + Number(r.price), 0);
-      const taken = new Set(active.map((r) => r.booking_time));
+      const taken = new Set(active.map((r) => normalizeTimeHm(r.booking_time)));
       const free = allSlots.filter((t) => !taken.has(t) && !isSlotInPast(today, t)).length;
-      const next = active.find((r) => r.status !== "completed" && !isSlotInPast(today, r.booking_time));
+      const next = active.find((r) => r.status !== "completed" && !isSlotInPast(today, normalizeTimeHm(r.booking_time)));
       return {
         ok: true as const, dbOk: true as const, today, count: active.length, revenue, free,
         next: next ? mapRow(next, true) : null,
         timeline: allSlots.map((time) => {
-          const row = active.find((r) => r.booking_time === time);
+          const row = active.find((r) => normalizeTimeHm(r.booking_time) === time);
           return { time, free: !row, past: isSlotInPast(today, time), booking: row ? mapRow(row, true) : null };
         }),
       };
@@ -372,13 +382,25 @@ export const updateMyBooking = createServerFn({ method: "POST" })
       const row = existing[0];
       if (!row) return { ok: false as const, error: "not_found" as const };
       const nextDate = data.date ?? String(row.booking_date).slice(0, 10);
-      const nextTime = data.time ?? row.booking_time;
-      if (!isWorkingDate(nextDate) || isSlotInPast(nextDate, nextTime) || !generateSlots().includes(nextTime))
-        return { ok: false as const, error: "slot_taken" as const };
-      if (nextDate !== String(row.booking_date).slice(0, 10) || nextTime !== row.booking_time) {
+      const nextTime = normalizeTimeHm(data.time ?? row.booking_time);
+      const prevTime = normalizeTimeHm(row.booking_time);
+      if (!nextTime || !/^\d{2}:\d{2}$/.test(nextTime)) {
+        return { ok: false as const, error: "invalid_slot" as const };
+      }
+      if (!isWorkingDate(nextDate) || !generateSlots().includes(nextTime)) {
+        return { ok: false as const, error: "invalid_slot" as const };
+      }
+      if (isSlotInPast(nextDate, nextTime)) {
+        return { ok: false as const, error: "past_slot" as const };
+      }
+      if (nextDate !== String(row.booking_date).slice(0, 10) || nextTime !== prevTime) {
         const clash = await sql<{ id: number }>`
-          select id from bookings where booking_date = ${nextDate}::date and booking_time = ${nextTime}
-            and status not in ('cancelled', 'no-show') and id <> ${data.id} limit 1`;
+          select id from bookings
+          where booking_date = ${nextDate}::date
+            and to_char(booking_time::time, 'HH24:MI') = ${nextTime}
+            and status not in ('cancelled', 'no-show')
+            and id <> ${data.id}
+          limit 1`;
         if (clash[0]) return { ok: false as const, error: "slot_taken" as const };
       }
       let vehicleType = normalizeVehicleId(row.vehicle_type);
