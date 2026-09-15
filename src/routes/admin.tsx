@@ -207,8 +207,20 @@ function AdminPage() {
                   <p className="mt-1 font-display text-xl">
                     {dash.next.time} · {dash.next.name}
                   </p>
-                  <p className="mt-1 text-sm text-muted">
-                    {dash.next.phone} · {formatEuro(dash.next.price, lang)}
+                  <p className="mt-1 text-sm">
+                    {dash.next.phone ? (
+                      <a className="text-fg underline-offset-2 hover:underline" href={`tel:${dash.next.phone}`}>{dash.next.phone}</a>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                    {dash.next.email ? (
+                      <>
+                        {" · "}
+                        <a className="text-muted underline-offset-2 hover:underline" href={`mailto:${dash.next.email}`}>{dash.next.email}</a>
+                      </>
+                    ) : null}
+                    {" · "}
+                    {formatEuro(dash.next.price, lang)}
                   </p>
                 </div>
               ) : null}
@@ -227,10 +239,18 @@ function AdminPage() {
                       <span className="w-12 tabular-nums text-muted">{slot.time}</span>
                       {slot.booking ? (
                         <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium">
-                            {slot.booking.name} · {slot.booking.phone}
-                          </p>
-                          <p className="text-xs text-muted">
+                          <p className="truncate font-medium">{slot.booking.name}</p>
+                          <p className="truncate text-xs text-muted">
+                            {slot.booking.phone ? (
+                              <a className="hover:underline" href={`tel:${slot.booking.phone}`}>{slot.booking.phone}</a>
+                            ) : "—"}
+                            {slot.booking.email ? (
+                              <>
+                                {" · "}
+                                <a className="hover:underline" href={`mailto:${slot.booking.email}`}>{slot.booking.email}</a>
+                              </>
+                            ) : null}
+                            {" · "}
                             {statusLabel(t, slot.booking.status)} · {formatEuro(slot.booking.price, lang)}
                           </p>
                         </div>
@@ -312,17 +332,29 @@ function BookingRow({
   return (
     <li className="rounded-xl border border-border bg-surface p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <p className="font-medium">
             {b.date} · {b.time}
           </p>
+          <p className="text-sm font-medium text-fg">{b.name || "—"}</p>
           <p className="text-sm text-muted">
-            {b.name} · {b.phone}
+            {b.phone ? (
+              <a className="hover:underline" href={`tel:${b.phone}`}>{b.phone}</a>
+            ) : (
+              <span>—</span>
+            )}
+            {b.email ? (
+              <>
+                {" · "}
+                <a className="hover:underline" href={`mailto:${b.email}`}>{b.email}</a>
+              </>
+            ) : null}
           </p>
           <p className="text-xs text-muted">
             {VEHICLES.find((v) => v.id === b.vehicleType)?.label[lang as "lv" | "ru" | "en"] ?? b.vehicleType} ·{" "}
             {formatEuro(b.price, lang)}
           </p>
+          {b.comment ? <p className="mt-1 text-xs text-muted">{b.comment}</p> : null}
         </div>
         <select
           className="rounded-md border border-border px-2 py-1 text-xs"
